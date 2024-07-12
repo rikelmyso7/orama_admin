@@ -6,7 +6,7 @@
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 
     <application
-        android:label="orama_admin"
+        android:label="Orama ADM"
         android:name="${applicationName}"
         android:icon="@mipmap/orama_launcher">
         <activity

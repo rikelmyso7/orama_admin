@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_mobx/flutter_mobx.dart';
 import 'package:get_storage/get_storage.dart';
 import 'package:orama_admin/pages/admin_page.dart';
+import 'package:orama_admin/pages/relatorios_sorvete_page.dart';
 import 'package:orama_admin/stores/comanda_store.dart';
 import 'package:orama_admin/utils/exit_dialog_utils.dart';
 import 'package:orama_admin/widgets/BottomNavigationBar.dart';
@@ -41,6 +42,11 @@ class _EstoquePageState extends State<EstoqueAdminPage> {
       setState(() {
         _currentIndex = index;
       });
+    } else if (index == 2) {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (context) => RelatoriosSorvetePage()),
+      );
     }
   }
 
@@ -128,8 +134,8 @@ class _EstoquePageState extends State<EstoqueAdminPage> {
 
                     for (var comanda in comandaStore
                         .getComandasForSelectedDay(comandaStore.selectedDate)) {
-                      final dia =
-                          DateFormat('dd/MM/yyyy', 'pt_BR').format(comanda.data);
+                      final dia = DateFormat('dd/MM/yyyy', 'pt_BR')
+                          .format(comanda.data);
                       if (!comandasPorDia.containsKey(dia)) {
                         comandasPorDia[dia] = [];
                       }
@@ -172,8 +178,8 @@ class _EstoquePageState extends State<EstoqueAdminPage> {
                                       _selectedComandas[index] = value!;
                                     });
                                   },
-                                  isExpanded:
-                                      comandaStore.getExpansionState(comanda.id),
+                                  isExpanded: comandaStore
+                                      .getExpansionState(comanda.id),
                                   onExpansionChanged: (isExpanded) {
                                     comandaStore.setExpansionState(
                                         comanda.id, isExpanded);
