@@ -30,7 +30,7 @@ class _AdminPageState extends State<AdminPage> {
       Navigator.pushReplacementNamed(context, RouteName.estoque_admin_page);
     }
     if (index == 2) {
-      Navigator.pushReplacementNamed(context, RouteName.relatorios_admin_page);
+      Navigator.pushReplacementNamed(context, RouteName.relatorios_sorvete_page);
     } else {
       setState(() {
         _currentIndex = index;

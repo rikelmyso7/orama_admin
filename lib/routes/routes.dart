@@ -9,7 +9,7 @@ class RouteName {
   static const admin_page = "/home";
   static const sabores_admin_page = "/sabores_admin_page";
   static const estoque_admin_page = "/estoque_admin_page";
-  static const relatorios_admin_page = "/relatorios_admin_page";
+  static const relatorios_sorvete_page = "/relatorios_sorvete_page";
 }
 
 class Routes {
@@ -27,6 +27,9 @@ class Routes {
       );
     },
     RouteName.estoque_admin_page: (BuildContext context) {
+      return EstoqueAdminPage();
+    },
+    RouteName.relatorios_sorvete_page: (BuildContext context) {
       return EstoqueAdminPage();
     },
   };
