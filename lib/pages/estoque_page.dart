@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_mobx/flutter_mobx.dart';
 import 'package:get_storage/get_storage.dart';
 import 'package:orama_admin/pages/admin_page.dart';
+import 'package:orama_admin/pages/relatorios_descartaveis_page.dart';
 import 'package:orama_admin/pages/relatorios_sorvete_page.dart';
 import 'package:orama_admin/stores/comanda_store.dart';
 import 'package:orama_admin/utils/exit_dialog_utils.dart';
@@ -46,6 +47,12 @@ class _EstoquePageState extends State<EstoqueAdminPage> {
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(builder: (context) => RelatoriosSorvetePage()),
+      );
+    }
+    else if (index == 3) {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (context) => RelatoriosDescartaveisPage()),
       );
     }
   }

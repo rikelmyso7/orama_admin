@@ -1,14 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:get_storage/get_storage.dart';
 import 'package:intl/intl.dart';
+import 'package:orama_admin/others/descartaveis.dart';
 import 'package:orama_admin/stores/comanda_store.dart';
+import 'package:orama_admin/widgets/cards/comanda_utils.dart';
 
-class AdminRelatoriosCard extends StatelessWidget {
-  final Comanda comanda;
+class AdminDescartavelCard extends StatelessWidget {
+  final ComandaDescartaveis comanda;
   final box = GetStorage();
   final Function(String comandaId) onDelete;
 
-  AdminRelatoriosCard({
+  AdminDescartavelCard({
     required this.comanda,
     required this.onDelete,
     Key? key,
@@ -37,21 +39,9 @@ class AdminRelatoriosCard extends StatelessWidget {
               ),
               _buildHeader(context),
               const SizedBox(height: 8.0),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    DateFormat('dd/MM/yyyy').format(comanda.data),
-                    style: TextStyle(fontSize: 16),
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.copy),
-                    onPressed: () => {},
-                  ),
-                ],
-              ),
+              _buildDateRow(),
               const SizedBox(height: 8.0),
-              ..._buildSaborList(comanda.sabores),
+              _buildDescartaveisList(),
             ],
           ),
         ),
@@ -104,47 +94,56 @@ class AdminRelatoriosCard extends StatelessWidget {
     }
   }
 
-  List<Widget> _buildSaborList(
-      Map<String, Map<String, Map<String, int>>> sabores) {
-    if (sabores.isEmpty) {
-      return [
-        Padding(
-          padding: const EdgeInsets.symmetric(vertical: 4.0),
-          child: Text("Nenhum sabor selecionado."),
+  Widget _buildDateRow() {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(
+          DateFormat('dd/MM/yyyy').format(comanda.data),
+          style: TextStyle(fontSize: 16),
         ),
-      ];
+        IconButton(
+          icon: const Icon(Icons.copy),
+          onPressed: () => {},
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDescartaveisList() {
+    if (comanda.quantidades.isEmpty) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4.0),
+        child: Text("Nenhum descartável selecionado."),
+      );
     }
 
-    return sabores.entries.expand((categoria) {
-      return categoria.value.entries.map((saborEntry) {
-        final opcoesValidas = saborEntry.value.entries
-            .where((quantidadeEntry) => quantidadeEntry.value > 0)
-            .toList();
-
-        if (opcoesValidas.isEmpty) {
-          return Container();
-        }
-
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: List.generate(comanda.quantidades.length, (index) {
         return Padding(
           padding: const EdgeInsets.symmetric(vertical: 4.0),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                saborEntry.key,
-                style: TextStyle(fontWeight: FontWeight.bold),
+                descartaveis[index].name,
+                style: const TextStyle(fontWeight: FontWeight.bold),
               ),
-              ...opcoesValidas.map((quantidadeEntry) {
-                return Padding(
-                  padding: const EdgeInsets.only(left: 16.0),
-                  child: Text(
-                      "- ${quantidadeEntry.value} Cuba ${quantidadeEntry.key}"),
-                );
-              }).toList(),
+              Padding(
+                padding: const EdgeInsets.only(left: 16.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('- Quantidade: ${comanda.quantidades[index]}'),
+                    Text('- Observação: ${comanda.observacoes[index]}'),
+                  ],
+                ),
+              ),
             ],
           ),
         );
-      }).toList();
-    }).toList();
+      }),
+    );
   }
 }

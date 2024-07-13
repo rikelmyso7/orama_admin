@@ -347,4 +347,77 @@ abstract class _ComandaStoreBase with Store {
       print('Failed to sync comandas with Firebase: $e');
     }
   }
+
+  // Novo método para buscar todos os usuários
+  Future<void> fetchAllUsers() async {
+    try {
+      final querySnapshot = await _firestore.collection('users').get();
+      final users = querySnapshot.docs.map((doc) => doc.data()).toList();
+      print(users); // Faz algo com a lista de usuários
+    } catch (e) {
+      print('Erro ao buscar usuários: $e');
+    }
+  }
+}
+
+class ComandaDescartaveis {
+  String name;
+  String id;
+  String pdv;
+  String userId;
+  List<String> quantidades;
+  List<String> observacoes;
+  DateTime data;
+
+  ComandaDescartaveis({
+    required this.name,
+    required this.id,
+    required this.pdv,
+    required this.userId,
+    required this.quantidades,
+    required this.observacoes,
+    required this.data,
+  });
+
+  factory ComandaDescartaveis.fromJson(Map<String, dynamic> json) {
+    return ComandaDescartaveis(
+      name: json['name'] ?? '',
+      id: json['id'] ?? '',
+      pdv: json['pdv'] ?? '',
+      userId: json['userId'] ?? '',
+      quantidades: List<String>.from(json['quantidades'] ?? []),
+      observacoes: List<String>.from(json['observacoes'] ?? []),
+      data: DateTime.parse(json['data'] ?? DateTime.now().toIso8601String()),
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'name': name,
+      'id': id,
+      'pdv': pdv,
+      'userId': userId,
+      'quantidades': quantidades,
+      'observacoes': observacoes,
+      'data': data.toIso8601String(),
+    };
+  }
+
+  Future<void> uploadToFirestore() async {
+    try {
+      final userId = GetStorage()
+          .read('userId'); // Troque para a forma que você obtém o ID do usuário
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(userId)
+          .collection('descartaveis')
+          .doc(id)
+          .set(toJson());
+
+      print('Comanda de descartáveis enviada para o Firestore com sucesso.');
+    } catch (e) {
+      print('Erro ao enviar comanda de descartáveis para o Firestore: $e');
+      throw e;
+    }
+  }
 }

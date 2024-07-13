@@ -1,5 +1,8 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:orama_admin/pages/estoque_page.dart';
+import 'package:orama_admin/pages/relatorios_descartaveis_page.dart';
+import 'package:orama_admin/pages/relatorios_sorvete_page.dart';
 import 'package:orama_admin/pages/sabores_admin_page.dart';
 import 'package:orama_admin/routes/routes.dart';
 import 'package:orama_admin/utils/exit_dialog_utils.dart';
@@ -27,10 +30,21 @@ class _AdminPageState extends State<AdminPage> {
 
   void onTabTapped(int index) {
     if (index == 1) {
-      Navigator.pushReplacementNamed(context, RouteName.estoque_admin_page);
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (context) => EstoqueAdminPage()),
+      );
     }
     if (index == 2) {
-      Navigator.pushReplacementNamed(context, RouteName.relatorios_sorvete_page);
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (context) => RelatoriosSorvetePage()),
+      );
+    } else if (index == 3) {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (context) => RelatoriosDescartaveisPage()),
+      );
     } else {
       setState(() {
         _currentIndex = index;
