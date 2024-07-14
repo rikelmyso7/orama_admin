@@ -28,15 +28,19 @@ class _SaborTileState extends State<SaborTile> {
       '3/4': 0,
       '4/4': 0,
     };
-    quantidadePorOpcao.addAll(tabViewState.saboresSelecionados[widget.categoria]?[widget.sabor] ?? {});
-    isExpanded = tabViewState.expansionState[widget.categoria]?[widget.sabor] ?? false;
+    quantidadePorOpcao.addAll(tabViewState.saboresSelecionados[widget.categoria]
+            ?[widget.sabor] ??
+        {});
+    isExpanded =
+        tabViewState.expansionState[widget.categoria]?[widget.sabor] ?? false;
   }
 
   void _incrementar(String opcao) {
     setState(() {
       quantidadePorOpcao[opcao] = (quantidadePorOpcao[opcao]! + 1);
     });
-    Provider.of<SaborStore>(context, listen: false).updateSaborTabView(widget.categoria, widget.sabor, quantidadePorOpcao);
+    Provider.of<SaborStore>(context, listen: false)
+        .updateSaborTabView(widget.categoria, widget.sabor, quantidadePorOpcao);
   }
 
   void _decrementar(String opcao) {
@@ -45,7 +49,8 @@ class _SaborTileState extends State<SaborTile> {
         quantidadePorOpcao[opcao] = (quantidadePorOpcao[opcao]! - 1);
       }
     });
-    Provider.of<SaborStore>(context, listen: false).updateSaborTabView(widget.categoria, widget.sabor, quantidadePorOpcao);
+    Provider.of<SaborStore>(context, listen: false)
+        .updateSaborTabView(widget.categoria, widget.sabor, quantidadePorOpcao);
   }
 
   @override
@@ -59,7 +64,8 @@ class _SaborTileState extends State<SaborTile> {
         setState(() {
           isExpanded = expanded;
         });
-        tabViewState.setExpansionState(widget.categoria, widget.sabor, expanded);
+        tabViewState.setExpansionState(
+            widget.categoria, widget.sabor, expanded);
       },
       children: opcoes.map((opcao) {
         return ListTile(

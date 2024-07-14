@@ -10,7 +10,9 @@ import 'package:orama_admin/utils/exit_dialog_utils.dart';
 import 'package:orama_admin/widgets/BottomNavigationBar.dart';
 import 'package:orama_admin/widgets/cards/admin_relatorios_card.dart';
 import 'package:orama_admin/widgets/date_picker_widget.dart';
+import 'package:provider/provider.dart';
 import 'package:rxdart/rxdart.dart';
+import 'package:uuid/uuid.dart';
 
 class RelatoriosSorvetePage extends StatefulWidget {
   @override
@@ -22,11 +24,18 @@ class _RelatoriosSorvetePageState extends State<RelatoriosSorvetePage> {
   final box = GetStorage();
   DateTime _selectedDate = DateTime.now();
   Future<List<String>>? _userIdsFuture;
+  List<bool> _selectedComandas = [];
 
   @override
   void initState() {
     super.initState();
     _userIdsFuture = _getUserIdsWithUserRole();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final comandaStore = Provider.of<ComandaStore>(context, listen: false);
+      setState(() {
+        _selectedComandas = List.filled(comandaStore.comandas.length, false);
+      });
+    });
   }
 
   void onTabTapped(int index) {
@@ -80,6 +89,8 @@ class _RelatoriosSorvetePageState extends State<RelatoriosSorvetePage> {
 
   @override
   Widget build(BuildContext context) {
+    final comandaStore = Provider.of<ComandaStore>(context);
+
     return PopScope(
       canPop: false,
       onPopInvoked: (bool didPop) async {
@@ -202,6 +213,18 @@ class _RelatoriosSorvetePageState extends State<RelatoriosSorvetePage> {
                             comanda: comanda,
                             onDelete: (comandaId) =>
                                 _deleteComanda(comanda.userId, comandaId),
+                            isSelected: _selectedComandas[index],
+                            onChanged: (value) {
+                              setState(() {
+                                _selectedComandas[index] = value!;
+                              });
+                            },
+                            isExpanded:
+                                comandaStore.getExpansionState(comanda.id),
+                            onExpansionChanged: (isExpanded) {
+                              comandaStore.setExpansionState(
+                                  comanda.id, isExpanded);
+                            },
                           );
                         },
                       );

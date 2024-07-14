@@ -211,6 +211,22 @@ mixin _$ComandaStore on _ComandaStoreBase, Store {
     });
   }
 
+  late final _$comandasCopiadasAtom =
+      Atom(name: '_ComandaStoreBase.comandasCopiadas', context: context);
+
+  @override
+  ObservableList<Comanda> get comandasCopiadas {
+    _$comandasCopiadasAtom.reportRead();
+    return super.comandasCopiadas;
+  }
+
+  @override
+  set comandasCopiadas(ObservableList<Comanda> value) {
+    _$comandasCopiadasAtom.reportWrite(value, super.comandasCopiadas, () {
+      super.comandasCopiadas = value;
+    });
+  }
+
   late final _$selectedDateAtom =
       Atom(name: '_ComandaStoreBase.selectedDate', context: context);
 
@@ -326,6 +342,7 @@ mixin _$ComandaStore on _ComandaStoreBase, Store {
   String toString() {
     return '''
 comandas: ${comandas},
+comandasCopiadas: ${comandasCopiadas},
 selectedDate: ${selectedDate},
 expansionState: ${expansionState}
     ''';

@@ -25,6 +25,8 @@ class _EstoquePageState extends State<EstoqueAdminPage> {
   @override
   void initState() {
     super.initState();
+    final comandaStore = Provider.of<ComandaStore>(context, listen: false);
+    comandaStore.syncWithFirebaseChanges();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final comandaStore = Provider.of<ComandaStore>(context, listen: false);
       setState(() {
@@ -48,8 +50,7 @@ class _EstoquePageState extends State<EstoqueAdminPage> {
         context,
         MaterialPageRoute(builder: (context) => RelatoriosSorvetePage()),
       );
-    }
-    else if (index == 3) {
+    } else if (index == 3) {
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(builder: (context) => RelatoriosDescartaveisPage()),

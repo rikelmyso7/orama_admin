@@ -189,6 +189,9 @@ abstract class _ComandaStoreBase with Store {
   ObservableList<Comanda> comandas = ObservableList<Comanda>();
 
   @observable
+  ObservableList<Comanda> comandasCopiadas = ObservableList<Comanda>();
+
+  @observable
   DateTime selectedDate = DateTime.now();
 
   @observable
@@ -328,7 +331,8 @@ abstract class _ComandaStoreBase with Store {
       final firebaseIds = firebaseComandas.map((c) => c.id).toSet();
 
       // Remove comandas locais que não estão mais no Firebase
-      final removedComandas = comandas.where((c) => !firebaseIds.contains(c.id)).toList();
+      final removedComandas =
+          comandas.where((c) => !firebaseIds.contains(c.id)).toList();
       removedComandas.forEach((c) => comandas.remove(c));
 
       // Adiciona ou atualiza comandas do Firebase localmente
@@ -356,6 +360,53 @@ abstract class _ComandaStoreBase with Store {
       print(users); // Faz algo com a lista de usuários
     } catch (e) {
       print('Erro ao buscar usuários: $e');
+    }
+  }
+
+  void copyComandaToFirebase(Comanda comanda) async {
+    try {
+      // Referência ao caminho onde a comanda será copiada
+      final copiedComandasCollection = FirebaseFirestore.instance
+          .collection('users')
+          .doc('VFBwvWYLh8bnHQzMtgSKiBI4usE3')
+          .collection('comandas');
+
+      // Cria uma nova cópia da comanda com um novo ID
+      final newComanda = Comanda(
+        name: comanda.name,
+        userId: comanda.userId,
+        id: Uuid().v4(), // Gera um novo ID
+        pdv: comanda.pdv,
+        sabores: comanda.sabores,
+        data: comanda.data,
+      );
+
+      // Adiciona a nova comanda ao Firestore
+      await copiedComandasCollection
+          .doc(newComanda.id)
+          .set(newComanda.toJson());
+
+    
+      final querySnapshot = await _comandasCollection.get();
+      final firebaseComandas = querySnapshot.docs
+          .map((doc) => Comanda.fromJson(doc.data() as Map<String, dynamic>))
+          .toList();
+
+      final copiedComandaCollection = _firestore
+          .collection('users')
+          .doc('VFBwvWYLh8bnHQzMtgSKiBI4usE3')
+          .collection('comandas');
+
+      final copiedComandaSnapshot = await copiedComandaCollection.get();
+      final copiedComandas = copiedComandaSnapshot.docs
+          .map((doc) => Comanda.fromJson(doc.data() as Map<String, dynamic>))
+          .toList();
+
+      comandas = ObservableList<Comanda>.of(firebaseComandas);
+      comandasCopiadas = ObservableList<Comanda>.of(copiedComandas);
+      _saveComandas();
+    } catch (e) {
+      print("Erro: $e");
     }
   }
 }

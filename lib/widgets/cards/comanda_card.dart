@@ -101,9 +101,10 @@ class _ComandaCardState extends State<ComandaCard> {
     final newComanda = Comanda(
       id: Uuid().v4(),
       pdv: widget.comanda.pdv,
-      sabores: Map<String, Map<String, Map<String, int>>>.from(
-          newSabores),
-      data: DateTime.now(), name: '', userId: '',
+      sabores: Map<String, Map<String, Map<String, int>>>.from(newSabores),
+      data: DateTime.now(),
+      name: '',
+      userId: '',
     );
 
     comandaStore.addOrUpdateCard(newComanda);
@@ -138,7 +139,7 @@ class _ComandaCardState extends State<ComandaCard> {
           title: Text(widget.comanda.pdv),
           children: [
             Container(
-              padding: const EdgeInsets.all(16.0),
+              padding: const EdgeInsets.all(10.0),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
