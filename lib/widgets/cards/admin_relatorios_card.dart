@@ -2,58 +2,75 @@ import 'package:flutter/material.dart';
 import 'package:get_storage/get_storage.dart';
 import 'package:intl/intl.dart';
 import 'package:orama_admin/stores/comanda_store.dart';
+import 'package:provider/provider.dart';
 
 class AdminRelatoriosCard extends StatelessWidget {
   final Comanda comanda;
   final box = GetStorage();
   final Function(String comandaId) onDelete;
+  final bool isExpanded;
+  final ValueChanged<bool> onExpansionChanged;
 
   AdminRelatoriosCard({
     required this.comanda,
     required this.onDelete,
     Key? key,
+    required this.isExpanded,
+    required this.onExpansionChanged,
+    required bool isSelected,
+    required Null Function(dynamic value) onChanged,
   }) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
+    final comandaStore = Provider.of<ComandaStore>(context);
+
     return Padding(
       padding: const EdgeInsets.all(10.0),
       child: Card(
         elevation: 2,
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
+        child: ExpansionTile(
+          initiallyExpanded: isExpanded,
+          onExpansionChanged: onExpansionChanged,
+          title: Text('${comanda.pdv} - ${comanda.name}'),
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    'Atendente - ${comanda.name}',
-                    style: const TextStyle(
-                        fontSize: 16, fontWeight: FontWeight.bold),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        'Atendente - ${comanda.name}',
+                        style: const TextStyle(
+                            fontSize: 16, fontWeight: FontWeight.bold),
+                      ),
+                    ],
                   ),
+                  _buildHeader(context),
+                  const SizedBox(height: 8.0),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        DateFormat('dd/MM/yyyy').format(comanda.data),
+                        style: TextStyle(fontSize: 16),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.copy),
+                        onPressed: () =>
+                            comandaStore.copyComandaToFirebase(comanda),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8.0),
+                  ..._buildSaborList(comanda.sabores),
                 ],
               ),
-              _buildHeader(context),
-              const SizedBox(height: 8.0),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    DateFormat('dd/MM/yyyy').format(comanda.data),
-                    style: TextStyle(fontSize: 16),
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.copy),
-                    onPressed: () => {},
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8.0),
-              ..._buildSaborList(comanda.sabores),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );

@@ -9,11 +9,17 @@ class AdminDescartavelCard extends StatelessWidget {
   final ComandaDescartaveis comanda;
   final box = GetStorage();
   final Function(String comandaId) onDelete;
+  final bool isExpanded;
+  final ValueChanged<bool> onExpansionChanged;
 
   AdminDescartavelCard({
     required this.comanda,
     required this.onDelete,
     Key? key,
+    required this.isExpanded,
+    required this.onExpansionChanged,
+    required bool isSelected,
+    required Null Function(dynamic value) onChanged,
   }) : super(key: key);
 
   @override
@@ -22,28 +28,44 @@ class AdminDescartavelCard extends StatelessWidget {
       padding: const EdgeInsets.all(10.0),
       child: Card(
         elevation: 2,
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Column(
+        child: ExpansionTile(
+          initiallyExpanded: isExpanded,
+          onExpansionChanged: onExpansionChanged,
+          title: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(
-                    'Atendente - ${comanda.name}',
-                    style: const TextStyle(
-                        fontSize: 16, fontWeight: FontWeight.bold),
-                  ),
-                ],
+              Text(comanda.pdv),
+              Text(
+                comanda.name,
+                style: TextStyle(fontWeight: FontWeight.bold),
               ),
-              _buildHeader(context),
-              const SizedBox(height: 8.0),
-              _buildDateRow(),
-              const SizedBox(height: 8.0),
-              _buildDescartaveisList(),
             ],
           ),
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        'Atendente - ${comanda.name}',
+                        style: const TextStyle(
+                            fontSize: 16, fontWeight: FontWeight.bold),
+                      ),
+                    ],
+                  ),
+                  _buildHeader(context),
+                  const SizedBox(height: 8.0),
+                  _buildDateRow(),
+                  const SizedBox(height: 8.0),
+                  _buildDescartaveisList(),
+                ],
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -101,10 +123,6 @@ class AdminDescartavelCard extends StatelessWidget {
         Text(
           DateFormat('dd/MM/yyyy').format(comanda.data),
           style: TextStyle(fontSize: 16),
-        ),
-        IconButton(
-          icon: const Icon(Icons.copy),
-          onPressed: () => {},
         ),
       ],
     );
