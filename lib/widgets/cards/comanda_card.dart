@@ -3,6 +3,7 @@ import 'package:get_storage/get_storage.dart';
 import 'package:intl/intl.dart';
 import 'package:orama_admin/pages/sabores_edit_page.dart';
 import 'package:orama_admin/stores/comanda_store.dart';
+import 'package:orama_admin/utils/show_snackbar.dart';
 import 'package:orama_admin/widgets/date_picker_widget.dart';
 import 'package:provider/provider.dart';
 import 'package:uuid/uuid.dart';
@@ -204,11 +205,13 @@ class _ComandaCardState extends State<ComandaCard> {
           children: [
             if (_isEditing)
               IconButton(
+                color: Colors.black,
                 icon: const Icon(Icons.save),
                 onPressed: _saveChanges,
               )
             else
               IconButton(
+                color: Colors.black,
                 icon: const Icon(Icons.edit),
                 onPressed: () {
                   setState(() {
@@ -217,12 +220,22 @@ class _ComandaCardState extends State<ComandaCard> {
                 },
               ),
             IconButton(
+              color: Colors.red,
               icon: const Icon(Icons.delete),
-              onPressed: _deleteComanda,
+              onPressed: () {
+                ShowSnackBar(
+                    context, 'Relatório deletado com sucesso!', Colors.red);
+                _deleteComanda();
+              },
             ),
             IconButton(
+              color: Colors.green,
               icon: const Icon(Icons.copy),
-              onPressed: _copyComanda,
+              onPressed: () {
+                ShowSnackBar(
+                    context, 'Relatório copiado com sucesso!', Colors.green);
+                _copyComanda();
+              },
             ),
           ],
         ),
@@ -258,17 +271,27 @@ class _ComandaCardState extends State<ComandaCard> {
           return Container();
         }
 
+        final isMassa = categoria.key == 'Massas';
+        final isManteiga = saborEntry.key == 'Manteiga';
+        final unidade = isManteiga ? 'Pote' : (isMassa ? 'Tubos' : 'Cubas');
+        final saborNome = isManteiga
+            ? "Manteiga"
+            : (isMassa ? "Massa de ${saborEntry.key}" : saborEntry.key);
+
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
               children: [
-                Text(saborEntry.key,
+                Text(saborNome,
                     style: const TextStyle(fontWeight: FontWeight.bold)),
                 if (_isEditing)
                   IconButton(
+                    color: Colors.red,
                     icon: const Icon(Icons.delete),
                     onPressed: () {
+                      ShowSnackBar(
+                          context, 'Deletado com sucesso!', Colors.red);
                       setState(() {
                         _saboresSelecionados[categoria.key]!
                             .remove(saborEntry.key);
@@ -284,64 +307,70 @@ class _ComandaCardState extends State<ComandaCard> {
             ...opcoesValidas.map((quantidadeEntry) {
               final itemKey =
                   '${categoria.key}-${saborEntry.key}-${quantidadeEntry.key}';
-              return Row(
-                children: [
-                  Text(
-                    "- ${quantidadeEntry.value} Cuba ${quantidadeEntry.key}",
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    "${_selectedItems.contains(itemKey) ? 'Reposição' : ''}",
-                    style: TextStyle(
-                        color: Colors.green, fontWeight: FontWeight.bold),
-                  ),
-                  if (_isEditing)
-                    Expanded(
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Row(
-                            children: [
-                              IconButton(
-                                icon: const Icon(Icons.add),
-                                onPressed: () {
-                                  _updateSabor(
-                                    categoria.key,
-                                    saborEntry.key,
-                                    quantidadeEntry.key,
-                                    quantidadeEntry.value + 1,
-                                  );
-                                },
-                              ),
-                              IconButton(
-                                icon: const Icon(Icons.remove),
-                                onPressed: () {
-                                  _updateSabor(
-                                    categoria.key,
-                                    saborEntry.key,
-                                    quantidadeEntry.key,
-                                    quantidadeEntry.value - 1,
-                                  );
-                                },
-                              ),
-                            ],
-                          ),
-                          Checkbox(
-                            value: _selectedItems.contains(itemKey),
-                            onChanged: (bool? value) {
-                              setState(() {
-                                if (value == true) {
-                                  _selectedItems.add(itemKey);
-                                } else {
-                                  _selectedItems.remove(itemKey);
-                                }
-                              });
-                            },
-                          ),
-                        ],
+              final itemText = isManteiga
+                  ? "- ${quantidadeEntry.key} $unidade"
+                  : isMassa
+                      ? "- ${quantidadeEntry.key} $unidade"
+                      : "- ${quantidadeEntry.value} $unidade ${quantidadeEntry.key}";
+
+              // Verifica se o texto do item contém "Reposição"
+              final isReposicao = itemText.contains("Reposição");
+              return Container(
+                color: isReposicao
+                    ? Colors.green
+                    : null, // Fundo verde claro para itens com "Reposição"
+                padding: const EdgeInsets.symmetric(vertical: 4.0),
+                child: Row(
+                  children: [
+                    Text(
+                      itemText,
+                      style: TextStyle(
+                        fontWeight:
+                            isReposicao ? FontWeight.bold : FontWeight.normal,
                       ),
                     ),
-                ],
+                    const SizedBox(width: 8),
+                    Text(
+                      "${_selectedItems.contains(itemKey) ? 'Reposição' : ''}",
+                      style: TextStyle(
+                          color: Colors.green, fontWeight: FontWeight.bold),
+                    ),
+                    if (_isEditing)
+                      Expanded(
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Row(
+                              children: [
+                                IconButton(
+                                  icon: const Icon(Icons.add),
+                                  onPressed: () {
+                                    _updateSabor(
+                                      categoria.key,
+                                      saborEntry.key,
+                                      quantidadeEntry.key,
+                                      quantidadeEntry.value + 1,
+                                    );
+                                  },
+                                ),
+                                IconButton(
+                                  icon: const Icon(Icons.remove),
+                                  onPressed: () {
+                                    _updateSabor(
+                                      categoria.key,
+                                      saborEntry.key,
+                                      quantidadeEntry.key,
+                                      quantidadeEntry.value - 1,
+                                    );
+                                  },
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                  ],
+                ),
               );
             }).toList(),
           ],

@@ -160,9 +160,10 @@ class _EstoquePageState extends State<EstoqueAdminPage> {
                       return const SizedBox.expand(
                         child: Center(
                           child: Text(
-                            "Não há Estoque do período selecionado.",
+                            "Não há Relatório do período selecionado.",
                             textAlign: TextAlign.center,
-                            style: TextStyle(fontSize: 18, color: Colors.grey),
+                            style: TextStyle(fontSize: 16
+                            , color: Colors.grey),
                           ),
                         ),
                       );

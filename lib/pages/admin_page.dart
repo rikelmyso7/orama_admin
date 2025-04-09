@@ -7,6 +7,7 @@ import 'package:orama_admin/pages/sabores_admin_page.dart';
 import 'package:orama_admin/routes/routes.dart';
 import 'package:orama_admin/utils/exit_dialog_utils.dart';
 import 'package:orama_admin/widgets/BottomNavigationBar.dart';
+import 'package:orama_admin/widgets/my_styles/my_menu.dart';
 
 class AdminPage extends StatefulWidget {
   @override
@@ -83,7 +84,6 @@ class _AdminPageState extends State<AdminPage> {
           onTabTapped: onTabTapped,
         ),
         appBar: AppBar(
-          automaticallyImplyLeading: false,
           iconTheme: IconThemeData(color: Colors.white),
           title: Text("Orama Controle",
               style:
@@ -92,6 +92,7 @@ class _AdminPageState extends State<AdminPage> {
           backgroundColor: const Color(0xff60C03D),
           scrolledUnderElevation: 0,
         ),
+        drawer: Menu(),
         body: _currentIndex == 0 ? PDVPage() : SizedBox.shrink(),
       ),
     );

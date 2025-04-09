@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "681609262580",
+    "project_id": "oramaloja",
+    "storage_bucket": "oramaloja.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:681609262580:android:b4af08cdfbfe43f5e075a1",
+        "android_client_info": {
+          "package_name": "com.example.oramaloja"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyA2kcPMyudjkGohevS98HXR4RdB1uIdNfY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:681609262580:android:502d5ba58414b4cde075a1",
+        "android_client_info": {
+          "package_name": "com.oramaloja.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyA2kcPMyudjkGohevS98HXR4RdB1uIdNfY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

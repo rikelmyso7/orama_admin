@@ -19,23 +19,36 @@ class RelatoriosSorvetePage extends StatefulWidget {
   _RelatoriosSorvetePageState createState() => _RelatoriosSorvetePageState();
 }
 
-class _RelatoriosSorvetePageState extends State<RelatoriosSorvetePage> {
+class _RelatoriosSorvetePageState extends State<RelatoriosSorvetePage>
+    with SingleTickerProviderStateMixin {
   int _currentIndex = 2;
   final box = GetStorage();
   DateTime _selectedDate = DateTime.now();
   Future<List<String>>? _userIdsFuture;
   List<bool> _selectedComandas = [];
+  late TabController _tabController;
 
   @override
   void initState() {
     super.initState();
     _userIdsFuture = _getUserIdsWithUserRole();
+    _tabController = TabController(length: 2, vsync: this);
+    _tabController.addListener(() {
+      setState(() {});
+    });
+    _selectedComandas = [];
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final comandaStore = Provider.of<ComandaStore>(context, listen: false);
       setState(() {
         _selectedComandas = List.filled(comandaStore.comandas.length, false);
       });
     });
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
   }
 
   void onTabTapped(int index) {
@@ -117,6 +130,15 @@ class _RelatoriosSorvetePageState extends State<RelatoriosSorvetePage> {
           ),
           elevation: 4,
           backgroundColor: const Color(0xff60C03D),
+          bottom: TabBar(
+            labelColor: Colors.white,
+            indicatorColor: Colors.amber,
+            controller: _tabController,
+            tabs: [
+              Tab(text: "INICIO"),
+              Tab(text: "FINAL"),
+            ],
+          ),
         ),
         body: Column(
           children: [
@@ -187,22 +209,41 @@ class _RelatoriosSorvetePageState extends State<RelatoriosSorvetePage> {
                         return Center(child: Text("Erro ao carregar comandas"));
                       }
 
+                      final selectedTab =
+                          _tabController.index == 0 ? "INICIO" : "FINAL";
+
                       final comandas = snapshot.data
                               ?.expand((querySnapshot) => querySnapshot.docs)
                               .where((doc) {
                                 final comandaDate = DateTime.parse(doc['data']);
+                                final comandaName = doc['name']
+                                    as String; // Obtenha o campo name
+                                final isInicio = comandaName
+                                    .contains("(INICIO)"); // Verifica a aba
                                 return comandaDate.year == _selectedDate.year &&
                                     comandaDate.month == _selectedDate.month &&
-                                    comandaDate.day == _selectedDate.day;
+                                    comandaDate.day == _selectedDate.day &&
+                                    ((selectedTab == "INICIO" && isInicio) ||
+                                        (selectedTab == "FINAL" &&
+                                            !isInicio)); // Filtra pela aba selecionada
                               })
                               .map((doc) => Comanda.fromJson(
                                   doc.data() as Map<String, dynamic>))
                               .toList() ??
                           [];
 
+                      WidgetsBinding.instance.addPostFrameCallback((_) {
+                        if (_selectedComandas.length != comandas.length) {
+                          _selectedComandas =
+                              List.filled(comandas.length, false);
+                        }
+                      });
+
                       if (comandas.isEmpty) {
-                        return Center(
-                            child: Text("Nenhuma comanda disponível."));
+                        final noComandasMessage = selectedTab == "INICIO"
+                            ? "Nenhuma comanda disponível para INICIO"
+                            : "Nenhuma comanda disponível para FINAL";
+                        return Center(child: Text(noComandasMessage));
                       }
 
                       return ListView.builder(
@@ -213,7 +254,9 @@ class _RelatoriosSorvetePageState extends State<RelatoriosSorvetePage> {
                             comanda: comanda,
                             onDelete: (comandaId) =>
                                 _deleteComanda(comanda.userId, comandaId),
-                            isSelected: _selectedComandas[index],
+                            isSelected: index < _selectedComandas.length
+                                ? _selectedComandas[index]
+                                : false,
                             onChanged: (value) {
                               setState(() {
                                 _selectedComandas[index] = value!;

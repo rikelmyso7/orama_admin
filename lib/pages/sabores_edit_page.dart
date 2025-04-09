@@ -4,6 +4,7 @@ import 'package:orama_admin/routes/routes.dart';
 import 'package:orama_admin/stores/comanda_store.dart';
 import 'package:orama_admin/utils/scroll_hide_fab.dart';
 import 'package:orama_admin/widgets/sabor_tile_admin.dart';
+import 'package:orama_admin/widgets/sabor_tile_edit.dart';
 import 'package:provider/provider.dart';
 import 'package:uuid/uuid.dart';
 import 'package:mobx/mobx.dart';
@@ -80,7 +81,7 @@ class _SaboresEditPageState extends State<SaboresEditPage>
           return ListView(
             controller: _scrollController,
             children: sortedSabores.map((sabor) {
-              return SaborTile(
+              return SaborTileEdit(
                 sabor: sabor,
                 categoria: key,
               );

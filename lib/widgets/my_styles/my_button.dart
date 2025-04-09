@@ -4,7 +4,7 @@ import 'package:orama_admin/widgets/my_styles/my_textstyle.dart';
 class MyButton extends StatefulWidget {
   final String buttonName;
   final Function()? onTap;
-  const MyButton({super.key, required this.buttonName, this.onTap});
+  const MyButton({super.key, required this.buttonName, this.onTap, required bool enabled});
 
   @override
   State<MyButton> createState() => _MyButtonState();
