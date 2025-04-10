@@ -1,0 +1,22 @@
+// This is a generated file; do not edit or check into version control.
+<<<<<<< Updated upstream
+FLUTTER_ROOT=C:\Users\rikel\.shorebird\bin\cache\flutter\009d947deb3a58d8801dbc995667e87523c7f08c
+=======
+FLUTTER_ROOT=C:\Program Files\flutter
+>>>>>>> Stashed changes
+FLUTTER_APPLICATION_PATH=C:\Users\rikel\OneDrive\Documentos\Flutter Projects\orama_admin
+COCOAPODS_PARALLEL_CODE_SIGN=true
+FLUTTER_TARGET=lib\main.dart
+FLUTTER_BUILD_DIR=build
+<<<<<<< Updated upstream
+FLUTTER_BUILD_NAME=2.1.0
+=======
+FLUTTER_BUILD_NAME=1.0.0
+>>>>>>> Stashed changes
+FLUTTER_BUILD_NUMBER=1
+EXCLUDED_ARCHS[sdk=iphonesimulator*]=i386
+EXCLUDED_ARCHS[sdk=iphoneos*]=armv7
+DART_OBFUSCATION=false
+TRACK_WIDGET_CREATION=true
+TREE_SHAKE_ICONS=false
+PACKAGE_CONFIG=.dart_tool/package_config.json

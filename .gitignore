@@ -1,0 +1,11 @@
+# Flutter build outputs
+build/
+.dart_tool/
+*.apk
+*.aab
+*.dill
+
+# IDE settings
+.idea/
+.vscode/
+*.iml
