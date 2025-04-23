@@ -16,16 +16,16 @@ class AdminPage extends StatefulWidget {
 
 class _AdminPageState extends State<AdminPage> {
   final List<String> pdvs = [
-    'Pesqueiro',
     'Brunholli',
     'Michelleto',
     'Travitália',
     'Da Roça',
     'Bendito',
     'Marquezim',
-    'Vibe',
     'Sassafraz',
     'Fontebasso',
+    'Eventos 1',
+    'Eventos 2',
   ];
   int _currentIndex = 0;
 
