@@ -320,17 +320,6 @@ mixin _$StockStore on _StockStore, Store {
         .run(() => super.fetchReportsEspecifico());
   }
 
-  late final _$saveDataToAdminReposicaoAsyncAction =
-      AsyncAction('_StockStore.saveDataToAdminReposicao', context: context);
-
-  @override
-  Future<void> saveDataToAdminReposicao(
-      String nome, String data, String city, String loja,
-      {String? reportId}) {
-    return _$saveDataToAdminReposicaoAsyncAction.run(() => super
-        .saveDataToAdminReposicao(nome, data, city, loja, reportId: reportId));
-  }
-
   late final _$updateReposicaoAsyncAction =
       AsyncAction('_StockStore.updateReposicao', context: context);
 

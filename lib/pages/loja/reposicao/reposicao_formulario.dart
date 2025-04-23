@@ -1,14 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_mobx/flutter_mobx.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
+import 'package:intl/intl.dart';
 import 'package:orama_admin/others/insumos.dart';
 import 'package:orama_admin/pages/loja/reposicao/reposicao_page.dart';
 import 'package:orama_admin/routes/routes.dart';
 import 'package:orama_admin/stores/stock_store.dart';
 import 'package:orama_admin/utils/addItemDialog.dart';
 import 'package:orama_admin/utils/extensions.dart';
+import 'package:orama_admin/utils/show_snackbar.dart';
 import 'package:orama_admin/widgets/my_styles/my_input_field.dart';
 import 'package:provider/provider.dart';
+import 'package:uuid/uuid.dart';
 
 class ReposicaoFormularioPage extends StatefulWidget {
   final String nome;
@@ -29,29 +32,21 @@ class ReposicaoFormularioPage extends StatefulWidget {
   }) : super(key: key);
 
   @override
-  State<ReposicaoFormularioPage> createState() => _ReposicaoFormularioPageState();
+  State<ReposicaoFormularioPage> createState() =>
+      _ReposicaoFormularioPageState();
 }
 
 class _ReposicaoFormularioPageState extends State<ReposicaoFormularioPage> {
   Map<String, TextEditingController> _quantityControllers = {};
   Map<String, TextEditingController> _pesoControllers = {};
+  List<String> categoriasVisiveis = [];
+  Map<String, List<Map<String, dynamic>>> insumosFiltrados = {};
+  bool isLoading = true;
 
- @override
+  @override
   void initState() {
     super.initState();
-    final store = Provider.of<StockStore>(context, listen: false);
-    if (widget.reportData != null) {
-      store.populateFieldsWithReport2(widget.reportData!);
-    }
-    insumos.forEach((category, items) {
-      for (var item in items) {
-        final key = store.generateKey(category, item['nome']);
-        _quantityControllers[key] =
-            TextEditingController(text: store.quantityValuesRepo[key] ?? '');
-        _pesoControllers[key] =
-            TextEditingController(text: store.pesoValuesRepo[key] ?? '');
-      }
-    });
+    _loadInsumosFromFirestore();
   }
 
   @override
@@ -60,6 +55,130 @@ class _ReposicaoFormularioPageState extends State<ReposicaoFormularioPage> {
     _pesoControllers.forEach((_, controller) => controller.dispose());
     super.dispose();
   }
+
+  void _initializeControllers() {
+    final store = Provider.of<StockStore>(context, listen: false);
+
+    if (widget.reportData != null) {
+      store.populateFieldsWithReport2(widget.reportData!);
+    }
+
+    for (final category in categoriasVisiveis) {
+      final items = insumosFiltrados[category]!;
+      for (var item in items) {
+        final key = store.generateKey(category, item['nome']);
+        _quantityControllers[key] =
+            TextEditingController(text: store.quantityValuesRepo[key] ?? '');
+        _pesoControllers[key] =
+            TextEditingController(text: store.pesoValuesRepo[key] ?? '');
+      }
+    }
+  }
+
+  Future<void> _loadInsumosFromFirestore() async {
+    final store = Provider.of<StockStore>(context, listen: false);
+    try {
+      final doc = await store.firestore
+          .collection('configuracoes_loja')
+          .doc('Repo Fabrica')
+          .get();
+
+      if (!doc.exists) {
+        if (context.mounted) {
+          ShowSnackBar(context, 'Loja não encontrada no Firestore', Colors.red);
+        }
+        setState(() => isLoading = false);
+        return;
+      }
+
+      final data = doc.data()!;
+      final categorias = List<String>.from(data['categorias'] ?? []);
+      final rawInsumos = data['insumos'] as Map<String, dynamic>? ?? {};
+
+      final Map<String, List<Map<String, dynamic>>> parsedInsumos = {};
+
+      for (final entry in rawInsumos.entries) {
+        final categoria = entry.key;
+        final items = List<Map<String, dynamic>>.from(entry.value);
+        parsedInsumos[categoria] = items;
+      }
+
+      setState(() {
+        categoriasVisiveis = categorias;
+        insumosFiltrados = parsedInsumos;
+        isLoading = false;
+      });
+
+      _initializeControllers(); // agora sim popula os campos
+    } catch (e) {
+      if (context.mounted) {
+        ShowSnackBar(context, 'Erro ao carregar insumos: $e', Colors.red);
+      }
+      setState(() => isLoading = false);
+    }
+  }
+
+
+  Future<void> saveDataToAdminReposicao(String nome, String data, String city, String loja,
+    {String? reportId}) async {
+    final store = Provider.of<StockStore>(context, listen: false);
+    final uuid = widget.reportId.isNotEmpty ? widget.reportId : const Uuid().v4();
+    final DateTime now = DateTime.now().toUtc().add(const Duration(hours: -3));
+    final String formattedDate = DateFormat('dd/MM/yyyy HH:mm').format(now);
+
+    final categorias = categoriasVisiveis.map((categoria) {
+      final items = insumosFiltrados[categoria]!.map((item) {
+        final itemName = item['nome'];
+        final tipo = item['tipo'] ?? '';
+        final key = store.generateKey(categoria, itemName);
+        final peso = _pesoControllers[key]?.text.trim() ?? '';
+        final quantidade = _quantityControllers[key]?.text.trim() ?? '';
+
+        if (quantidade.isNotEmpty) {
+          return {
+            'Item': itemName,
+            'Quantidade': quantidade,
+            'Peso': peso,
+            'Tipo': tipo,
+          };
+        }
+        return null;
+      }).where((item) => item != null).cast<Map<String, dynamic>>().toList();
+
+      if (items.isNotEmpty) {
+        return {'Categoria': categoria, 'Itens': items};
+      }
+      return null;
+    }).where((categoria) => categoria != null).cast<Map<String, dynamic>>().toList();
+
+    if (categorias.isEmpty) {
+      print("Nenhum item foi preenchido. O relatório não será salvo.");
+      return;
+    }
+
+    final report = {
+      'ID': uuid,
+      'Nome do usuario': widget.nome,
+      'Data': formattedDate,
+      'Cidade': widget.city,
+      'Loja': widget.loja,
+      'Categorias': categorias,
+    };
+
+    try {
+      await store.firestore
+          .collection('users')
+          .doc('Db4XIYcNMhUgYXvF6JDJJxbc3h82')
+          .collection('reposicao')
+          .doc(uuid)
+          .set(report);
+
+      print("Relatório salvo com sucesso: $report");
+    } catch (e) {
+      print("Erro ao salvar relatório: $e");
+    }
+  }
+
 
   @override
   Widget build(BuildContext context) {
@@ -81,7 +200,7 @@ class _ReposicaoFormularioPageState extends State<ReposicaoFormularioPage> {
         }
       },
       child: DefaultTabController(
-        length: insumos.keys.length,
+        length: categoriasVisiveis.length,
         child: Scaffold(
           appBar: AppBar(
             iconTheme: const IconThemeData(color: Colors.white),
@@ -89,18 +208,21 @@ class _ReposicaoFormularioPageState extends State<ReposicaoFormularioPage> {
               isScrollable: true,
               labelColor: Colors.white,
               indicatorColor: Colors.amber,
-              tabs: insumos.keys.map((category) => Tab(text: category)).toList(),
+              tabs: categoriasVisiveis
+                  .map((category) => Tab(text: category))
+                  .toList(),
             ),
             title: const Text(
               'Reposição',
-              style: TextStyle(color: Colors.white, fontWeight: FontWeight.w500),
+              style:
+                  TextStyle(color: Colors.white, fontWeight: FontWeight.w500),
             ),
             actions: [
               IconButton(
                 color: Colors.white,
                 icon: const Icon(Icons.save),
                 onPressed: () async {
-                  await store.saveDataToAdminReposicao(
+                  await saveDataToAdminReposicao(
                       widget.nome, widget.data, widget.city, widget.loja);
                   store.clearFields();
                   Navigator.pushAndRemoveUntil(
@@ -116,9 +238,8 @@ class _ReposicaoFormularioPageState extends State<ReposicaoFormularioPage> {
           ),
           body: Observer(
             builder: (_) => TabBarView(
-              children: insumos.entries.map((entry) {
-                final category = entry.key;
-                final items = List.from(insumos[category]!)
+              children: categoriasVisiveis.map((category) {
+                final items = insumosFiltrados[category]!
                   ..sort((a, b) => a['nome'].compareTo(b['nome']));
 
                 return ListView.builder(
@@ -132,11 +253,11 @@ class _ReposicaoFormularioPageState extends State<ReposicaoFormularioPage> {
                         : itemName;
 
                     final quantityController = _quantityControllers[key]!;
-          final pesoController = _pesoControllers[key]!;
-
+                    final pesoController = _pesoControllers[key]!;
 
                     return Card(
-                      margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      margin: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 6),
                       elevation: 3,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(8),
@@ -186,7 +307,8 @@ class _ReposicaoFormularioPageState extends State<ReposicaoFormularioPage> {
                                       border: OutlineInputBorder(
                                         borderRadius: BorderRadius.circular(8),
                                       ),
-                                      suffixIcon: Icon(Icons.add_shopping_cart_rounded),
+                                      suffixIcon:
+                                          Icon(Icons.add_shopping_cart_rounded),
                                       suffixIconColor: Colors.grey[500],
                                     ),
                                     onChanged: (value) {

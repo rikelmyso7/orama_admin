@@ -35,21 +35,67 @@ class _EditarRelatorioPageState extends State<EditarReposicaoPage> {
   bool isDataLoaded = false;
   Map<String, TextEditingController> _quantityControllers = {};
   Map<String, TextEditingController> _pesoControllers = {};
+  bool isLoading = true;
+  List<String> categoriasVisiveis = [];
+  Map<String, List<Map<String, dynamic>>> insumosFiltrados = {};
 
   @override
   void initState() {
     super.initState();
     store = Provider.of<StockStore>(context, listen: false);
-    store.populateFieldsWithEditRepo(
-        widget.reportData); // <- primeiro popula os dados
-    _initializeControllers(); // <- depois cria os controllers com os dados preenchidos
-    isDataLoaded = true;
+    _loadInsumosFromFirestore();
+  }
+
+  Future<void> _loadInsumosFromFirestore() async {
+    try {
+      final doc = await store.firestore
+          .collection('configuracoes_loja')
+          .doc(widget.loja)
+          .get();
+
+      if (!doc.exists) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Loja não encontrada no Firestore')),
+          );
+        }
+        setState(() => isLoading = false);
+        return;
+      }
+
+      final data = doc.data()!;
+      final categorias = List<String>.from(data['categorias'] ?? []);
+      final rawInsumos = data['insumos'] as Map<String, dynamic>? ?? {};
+
+      final Map<String, List<Map<String, dynamic>>> parsedInsumos = {};
+
+      for (final entry in rawInsumos.entries) {
+        final categoria = entry.key;
+        final items = List<Map<String, dynamic>>.from(entry.value);
+        parsedInsumos[categoria] = items;
+      }
+
+      setState(() {
+        categoriasVisiveis = categorias;
+        insumosFiltrados = parsedInsumos;
+        isLoading = false;
+      });
+
+      store.populateFieldsWithEditRepo(widget.reportData);
+      _initializeControllers();
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erro ao carregar insumos: $e')),
+        );
+      }
+      setState(() => isLoading = false);
+    }
   }
 
   void _initializeControllers() {
-    // Preenche os controladores com os dados do relatório
-    store.populateFieldsWithEditRepo(widget.reportData);
-    insumos.forEach((category, items) {
+    for (final category in categoriasVisiveis) {
+      final items = insumosFiltrados[category]!;
       for (var item in items) {
         final itemName = item['nome'];
         final key = (category == 'BALDES' || category == 'POTES')
@@ -57,11 +103,10 @@ class _EditarRelatorioPageState extends State<EditarReposicaoPage> {
             : itemName;
         _quantityControllers[key] = TextEditingController(
             text: store.quantityValuesEditRepo[key] ?? '');
-
         _pesoControllers[key] =
             TextEditingController(text: store.pesoValuesRepo[key] ?? '');
       }
-    });
+    }
   }
 
   @override
@@ -95,7 +140,11 @@ class _EditarRelatorioPageState extends State<EditarReposicaoPage> {
 
   @override
   Widget build(BuildContext context) {
-    final itemsForReport = store.getItemsForReport(widget.reportId);
+    if (isLoading) {
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
 
     return PopScope(
       canPop: false,
@@ -108,7 +157,7 @@ class _EditarRelatorioPageState extends State<EditarReposicaoPage> {
         }
       },
       child: DefaultTabController(
-        length: itemsForReport.keys.length,
+        length: categoriasVisiveis.length,
         child: Scaffold(
           appBar: AppBar(
             iconTheme: const IconThemeData(color: Colors.white),
@@ -116,8 +165,9 @@ class _EditarRelatorioPageState extends State<EditarReposicaoPage> {
               isScrollable: true,
               labelColor: Colors.white,
               indicatorColor: Colors.amber,
-              tabs:
-                  insumos.keys.map((category) => Tab(text: category)).toList(),
+              tabs: categoriasVisiveis
+                  .map((category) => Tab(text: category))
+                  .toList(),
             ),
             title: const Text(
               'Editar',
@@ -160,9 +210,8 @@ class _EditarRelatorioPageState extends State<EditarReposicaoPage> {
           ),
           body: Observer(
             builder: (_) => TabBarView(
-              children: insumos.entries.map((entry) {
-                final category = entry.key;
-                final items = List.from(insumos[category]!)
+              children: categoriasVisiveis.map((category) {
+                final items = insumosFiltrados[category]!
                   ..sort((a, b) => a['nome'].compareTo(b['nome']));
 
                 return ListView.builder(
@@ -180,7 +229,6 @@ class _EditarRelatorioPageState extends State<EditarReposicaoPage> {
 
                     return Observer(
                       builder: (_) {
-
                         return Card(
                           margin: const EdgeInsets.symmetric(
                               horizontal: 10, vertical: 6),
