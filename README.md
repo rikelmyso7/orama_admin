@@ -2,11 +2,11 @@
 
 _A Flutter mobile & web app for centralized stock, reporting, and inventory sync across Orama’s factory, stores, and points‑of‑sale._
 
-> **Status:** Private – in active development 🚧
+> **Status:** Private – in active development 
 
 ---
 
-## ✨ Key Features
+## Key Features
 
 | # | Feature | Details |
 |---|----------|---------|
@@ -19,29 +19,28 @@ _A Flutter mobile & web app for centralized stock, reporting, and inventory sync
 
 ---
 
-## 📚 Tech Stack
+## Tech Stack
 
-- **Flutter 3.19** + **Dart** 🇩🇧  
+- **Flutter**
 - **Firebase** (Auth ▸ Firestore ▸ Storage)  
 - **MobX** for reactive state  
 - **GetStorage** for local persistence  
-- **Syncfusion Flutter** charts & gauges  
 - **pdf / excel** packages for export  
 - **CI/CD**: GitHub Actions ▸ Codemagic (Shorebird hot‑patch ready)
 
 ---
 
-## 🏗️ Architecture Overview
+## Architecture Overview
 
 ```
 ┌────────────┐          realtime           ┌──────────────┐
-│ Factory App│ ──────── Firestore ───────▶ │ Admin Portal │
-└────────────┘         (stock)            └──────────────┘
+│ Factory App│ ──────── Firestore ───────▶│ Admin Portal │
+└────────────┘         (stock)             └──────────────┘
        ▲                                     │   ▲
        │ write stock‑in                      │   │
        ▼                                     ▼   │
 ┌────────────┐        sync / offline       ┌──────────────┐
-│ Store App  │ ◀────────────────────────── │  Orama Stock │
+│ Store App  │ ◀──────────────────────────│  Orama Stock │
 └────────────┘                             └──────────────┘
 ```
 
@@ -49,7 +48,7 @@ _A Flutter mobile & web app for centralized stock, reporting, and inventory sync
 
 ---
 
-## 🚀 Getting Started
+## Getting Started
 
 ### 1. Prerequisites
 
@@ -91,7 +90,7 @@ flutter build web   # PWA
 
 ---
 
-## 📁 Folder Structure
+## Folder Structure
 
 ```
 lib/
@@ -110,14 +109,14 @@ lib/
 
 ---
 
-## 🧪 Testing
+## Testing
 
 - Unit tests live in `test/` – run with `flutter test`.
 - Widget tests cover critical flows such as report creation.
 
 ---
 
-## 📝 Documentation
+## Documentation
 
 Generate API docs with:
 
@@ -130,7 +129,7 @@ The HTML output in `doc/api` can be deployed with **GitHub Pages**.
 
 ---
 
-## 🤝 Contributing
+## Contributing
 
 > This repository is private. Contact **@rikelmyso7** for access.
 
@@ -140,7 +139,7 @@ The HTML output in `doc/api` can be deployed with **GitHub Pages**.
 
 ---
 
-## 📄 License
+## License
 
 Released under the MIT License – see [`LICENSE`](LICENSE) for details.
 
@@ -149,11 +148,8 @@ Released under the MIT License – see [`LICENSE`](LICENSE) for details.
 ## 📸 Screenshots
 
 <p align="center">
-  <img src="docs/screenshots/dashboard.png" width="250" />
-  <img src="docs/screenshots/report_form.png" width="250" />
+  <img src="docs/screenshots/orama.png" width="250" />
 </p>
-
-Add yours in `docs/screenshots/`.
 
 ---
 
