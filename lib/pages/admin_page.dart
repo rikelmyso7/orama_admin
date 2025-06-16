@@ -7,7 +7,9 @@ import 'package:orama_admin/pages/relatorios_descartaveis_page.dart';
 import 'package:orama_admin/pages/relatorios_sorvete_page.dart';
 import 'package:orama_admin/pages/sabores_admin_page.dart';
 import 'package:orama_admin/routes/routes.dart';
+import 'package:orama_admin/services/update_service.dart';
 import 'package:orama_admin/utils/exit_dialog_utils.dart';
+import 'package:orama_admin/utils/show_update_dialogs_util.dart';
 import 'package:orama_admin/widgets/BottomNavigationBar.dart';
 import 'package:orama_admin/widgets/my_styles/my_menu.dart';
 
@@ -51,6 +53,25 @@ class _AdminPageState extends State<AdminPage> {
         SnackBar(content: Text('Erro ao fazer logout: $e')),
       );
     }
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _checkAndShowUpdate();
+  }
+
+   Future<void> _checkAndShowUpdate() async {
+    final update = await UpdateService.checkForUpdate();
+    if (!mounted || update == null) return;
+
+    UpdateDialog.show(
+      context: context,
+      title: "${update.title} ${update.version}",
+      message: update.message,
+      apkUrl: update.apkUrl,
+      color: Colors.white,
+    );
   }
 
   @override
