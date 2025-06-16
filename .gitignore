@@ -15,6 +15,8 @@ migrate_working_dir/
 *.ipr
 *.iws
 .idea/
+.vscode/
+*.code-workspace
 
 # The .vscode folder contains launch configuration and tasks you configure in
 # VS Code which you may wish to be included in version control, so this line
@@ -30,6 +32,8 @@ migrate_working_dir/
 .pub-cache/
 .pub/
 /build/
+.packages
+coverage/
 
 # Symbolication related
 app.*.symbols
@@ -50,3 +54,45 @@ build
 
 /android/orama_keystore.jks
 /android/private_key.pepk
+
+# Arquivos de compilação e cache
+*.o
+*.a
+*.so
+*.dylib
+*.exe
+*.dll
+*.obj
+*.pyc
+
+# Arquivos de ambiente e chaves sensíveis
+.env
+*.key
+*.pem
+*.cert
+google-services.json
+firebase_options.dart
+
+# Arquivos de logs e temporários
+*.log
+*.tmp
+*.bak
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# Diretórios de dependências
+/ios/Pods/
+/ios/Podfile.lock
+/android/.gradle/
+/android/local.properties
+/android/gradlew
+/android/gradlew.bat
+
+# Arquivos específicos do Flutter
+*.g.dart
+*.freezed.dart
+*.gen.dart
+*.gr.dart
+*.mocks.dart

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'package:orama_admin/others/sabores.dart';
 import 'package:orama_admin/routes/routes.dart';
 import 'package:orama_admin/stores/comanda_store.dart';
@@ -47,6 +48,8 @@ class _SaboresPageState extends State<SaboresAdminPage>
   Widget build(BuildContext context) {
     final comandaStore = Provider.of<ComandaStore>(context);
     final tabViewState = Provider.of<SaborStore>(context);
+    final dataFormat = DateFormat('dd-MM-yyyy HH:mm').format(DateTime.now());
+              final comandaId = '${dataFormat} - ${widget.pdv}';
 
     return Scaffold(
       appBar: AppBar(
@@ -91,12 +94,13 @@ class _SaboresPageState extends State<SaboresAdminPage>
           ),
           onPressed: () {
             comandaStore.addOrUpdateCard(
+              
               Comanda(
                   pdv: widget.pdv,
                   sabores: tabViewState.saboresSelecionados.map((key, value) =>
                       MapEntry(key, Map<String, Map<String, int>>.from(value))),
                   data: DateTime.now(),
-                  id: Uuid().v4(), name: '', userId: ''),
+                  id: comandaId, name: '', userId: ''),
             );
             tabViewState.resetExpansionState();
             tabViewState.resetSaborTabView();

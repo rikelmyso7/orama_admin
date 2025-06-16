@@ -69,6 +69,14 @@ android {
     }
 }
 
+configurations.all {
+    resolutionStrategy.eachDependency {DependencyResolveDetails details ->
+        if (details.requested.group == 'org.jetbrains.kotlin') {
+            details.useVersion '2.1.0'
+        }
+    }
+}
+
 dependencies {
     implementation platform('com.google.firebase:firebase-bom')
     implementation 'com.google.firebase:firebase-auth'

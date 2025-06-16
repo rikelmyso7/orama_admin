@@ -1,0 +1,46 @@
+final List<String> pdvs = [
+  'Brunholli',
+  'Bar da Cachoeira',
+  'Michelleto',
+  'Travitália',
+  'Da Roça',
+  'Bendito',
+  'Marquezim',
+  'Sassafraz',
+  'Fontebasso',
+  'Eventos 1',
+  'Eventos 2',
+];
+
+const List<String> categoriasPadrao = [
+  'BALDES',
+  'POTES',
+  'COOKIES',
+  'PÃO DE QUEIJO',
+  'SECOS',
+  'TOPPINGS',
+  'PERECÍVEIS',
+  'POLPAS',
+  'INSUMOS',
+  'DECORAÇÃO',
+  'BEBIDAS',
+  'DESCARTÁVEIS',
+  'LIMPEZA',
+  'UNIFORMES',
+  'UTENSÍLIOS',
+  'PAPELARIA',
+];
+
+const List<String> tiposPadrao = [
+  'Balde',
+  'Pote',
+  'Un',
+  'g',
+  'Tubo',
+  'Kg',
+  'Fardo',
+  'Caixa',
+  'Sacos',
+  'Litro',
+  'Rolo',
+];

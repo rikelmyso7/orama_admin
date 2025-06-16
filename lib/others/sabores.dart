@@ -20,6 +20,7 @@ const Map<String, List<String>> sabores = {
     'Coco com Abóbora',
     'Brigadeiro com Cookies',
     'Tapioca',
+    'Chocolate ao Leite'
   ],
   'Veganos': [
     'Açaí Juçara (Vegano)',
@@ -45,4 +46,8 @@ const Map<String, List<String>> sabores = {
     'Limão Vegano',
     'Coco Verde Vegano',
   ],
+  'Especiais': [
+    'Vinho Quente',
+    'Espumante',
+  ]
 };

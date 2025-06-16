@@ -98,8 +98,8 @@ class AdminRelatoriosCard extends StatelessWidget {
                   color: Colors.red,
                   icon: const Icon(Icons.delete),
                   onPressed: () {
-                    ShowSnackBar(context, 'Relatório deletado com sucesso!', Colors.red);
                     _deleteComanda(context);
+                    
                   }),
             ],
           ),
@@ -152,6 +152,7 @@ class AdminRelatoriosCard extends StatelessWidget {
 
     if (shouldDelete == true) {
       onDelete(comanda.id);
+      ShowSnackBar(context, 'Relatório deletado com sucesso!', Colors.red);
     }
   }
 
