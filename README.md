@@ -1,8 +1,29 @@
 # Orama Admin
 
-_A Flutter mobile & web app for centralized stock, reporting, and inventory sync across Orama’s factory, stores, and points‑of‑sale._
+> **Orama Admin** is a Flutter & Firebase application that centralises stock control, replenishment reports and operational dashboards for every Orama unit – factory, stores and mobile carts – with offline‑first behaviour and hot‑patch updates.
 
-> **Status:** Private – in active development 
+<div align="center">
+
+[![Flutter](https://img.shields.io/badge/built%20with-Flutter-02569B?logo=flutter&logoColor=white)](#tech-stack)
+[![Firebase](https://img.shields.io/badge/backed%20by-Firebase-FFCA28?logo=firebase&logoColor=black)](#tech-stack)
+[![CI/CD](https://img.shields.io/github/actions/workflow/status/rikelmyso7/orama_admin/ci.yaml?label=CI%2FCD)](#ci--cd)
+[![License](https://img.shields.io/github/license/rikelmyso7/orama_admin.svg)](#license)
+
+</div>
+
+---
+
+## Table of Contents
+1. [Key Features](#key-features)  
+2. [Tech Stack](#tech-stack)  
+3. [Architecture](#architecture)  
+4. [Getting Started](#getting-started)  
+5. [Environment Configuration](#environment-configuration)  
+6. [Running & Building](#running--building)  
+7. [Testing](#testing)  
+8. [CI / CD](#ci--cd)  
+9. [Contributing](#contributing)  
+10. [License](#license)
 
 ---
 
@@ -126,16 +147,6 @@ flutter pub global run dartdoc
 ```
 
 The HTML output in `doc/api` can be deployed with **GitHub Pages**.
-
----
-
-## Contributing
-
-> This repository is private. Contact **@rikelmyso7** for access.
-
-1. Fork and create a feature branch (`feat/my-feature`).
-2. Commit using conventional commits.
-3. Open a Pull Request.
 
 ---
 
