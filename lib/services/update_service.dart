@@ -3,7 +3,7 @@ import 'package:app_installer/app_installer.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_app_installer/flutter_app_installer.dart';
+import 'package:orama_admin/main.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -41,9 +41,10 @@ class UpdateService {
       dev.log('Versão instalada: $currentVersion', name: _logName);
 
       // 2. Consulta ao Firestore
-      final doc = await FirebaseFirestore.instance
+      final FirebaseFirestore _firestore = primaryFirestore;
+      final doc = await _firestore
           .collection('app_updates')
-          .doc('latest')
+          .doc('orama_admin')
           .get();
 
       final data = doc.data();
@@ -104,12 +105,6 @@ class UpdateService {
 
     // 2. Chamar instalador nativo (abre diálogo)
     debugPrint('Instalando..');
-    final flutterAppInstaller = FlutterAppInstaller();
-    try {
-    await flutterAppInstaller.installApk(filePath: tempPath);
-    print('APK instalado com sucesso');
-  } catch (e) {
-    print('Erro ao instalar APK: $e');
-  }
+    await AppInstaller.installApk(tempPath);
   }
 }

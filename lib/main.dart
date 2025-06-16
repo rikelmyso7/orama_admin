@@ -89,11 +89,11 @@ class MyApp extends StatelessWidget {
         Provider<StockStore>(create: (_) => StockStore()),
       ],
       child: MaterialApp(
-        title: 'Flutter Firebase Auth',
+        title: 'Orama Admin',
         debugShowCheckedModeBanner: false,
         theme: ThemeData(
-          primarySwatch: Colors.blue,
-        ),
+            colorScheme: const ColorScheme.light(
+                primary: Color(0xFF00A676), brightness: Brightness.light)),
         routes: Routes.routes,
         initialRoute: RouteName.splash,
       ),
