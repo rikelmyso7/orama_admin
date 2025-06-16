@@ -5,6 +5,8 @@ import 'package:orama_admin/others/insumos.dart';
 import 'package:orama_admin/routes/routes.dart';
 import 'package:orama_admin/stores/stock_store.dart';
 import 'package:orama_admin/utils/addItemDialog.dart';
+import 'package:orama_admin/utils/exit_dialog_utils.dart';
+import 'package:orama_admin/utils/scroll_hide_fab.dart';
 import 'package:orama_admin/widgets/my_styles/my_input_field.dart';
 import 'package:provider/provider.dart';
 
@@ -38,12 +40,14 @@ class _EditarRelatorioPageState extends State<EditarReposicaoPage> {
   bool isLoading = true;
   List<String> categoriasVisiveis = [];
   Map<String, List<Map<String, dynamic>>> insumosFiltrados = {};
+  late ScrollController _scrollController;
 
   @override
   void initState() {
     super.initState();
     store = Provider.of<StockStore>(context, listen: false);
     _loadInsumosFromFirestore();
+    _scrollController = ScrollController();
   }
 
   Future<void> _loadInsumosFromFirestore() async {
@@ -56,7 +60,8 @@ class _EditarRelatorioPageState extends State<EditarReposicaoPage> {
       if (!doc.exists) {
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Loja não encontrada no Firestore')),
+            const SnackBar(
+                content: Text('Fábrica não encontrada no Firestore')),
           );
         }
         setState(() => isLoading = false);
@@ -111,7 +116,6 @@ class _EditarRelatorioPageState extends State<EditarReposicaoPage> {
 
   @override
   void dispose() {
-    // Descarta todos os controladores locais
     _quantityControllers.forEach((_, controller) => controller.dispose());
     _pesoControllers.forEach((_, controller) => controller.dispose());
     super.dispose();
@@ -179,30 +183,18 @@ class _EditarRelatorioPageState extends State<EditarReposicaoPage> {
                 color: Colors.white,
                 icon: const Icon(Icons.delete),
                 onPressed: () async {
-                  await store.deleteReposicao(widget.reportId);
-                  Navigator.pushReplacementNamed(context, RouteName.reposicao);
-                },
-              ),
-              IconButton(
-                color: Colors.white,
-                icon: const Icon(Icons.save),
-                onPressed: () async {
-                  // Atualiza os valores no store antes de salvar
-                  _quantityControllers.forEach((key, controller) {
-                    store.updateQuantityEdit(key, controller.text);
-                  });
-                  await store.updateEditReposicao(
-                    widget.reportId,
-                    widget.nome,
-                    widget.city,
-                    widget.loja,
-                    widget.data,
+                  DialogUtils.showConfirmationDialog(
+                    context: context,
+                    title: 'Excluir Item',
+                    content: 'Tem certeza que deseja excluir este Relatório?',
+                    confirmText: 'Excluir',
+                    cancelText: 'Cancelar',
+                    onConfirm: () {
+                      store.deleteReposicao(widget.reportId);
+                      Navigator.pushReplacementNamed(
+                          context, RouteName.reposicao);
+                    },
                   );
-                  store.fetchReports();
-                  store.clearRepoFields();
-                  if (context.mounted) {
-                    Navigator.pop(context);
-                  }
                 },
               ),
             ],
@@ -380,6 +372,32 @@ class _EditarRelatorioPageState extends State<EditarReposicaoPage> {
               }).toList(),
             ),
           ),
+          floatingActionButton: ScrollHideFab(
+              scrollController: _scrollController,
+              child: FloatingActionButton(
+                  backgroundColor: const Color(0xff60C03D),
+                  child: Icon(
+                    Icons.check,
+                    color: Colors.white,
+                  ),
+                  onPressed: () {
+                    _quantityControllers.forEach((key, controller) {
+                      store.updateQuantityEdit(key, controller.text);
+                    });
+                    store.updateEditReposicao(
+                      widget.reportId,
+                      widget.nome,
+                      widget.city,
+                      widget.loja,
+                      widget.data,
+                    );
+                    store.fetchReports();
+                    store.clearRepoFields();
+                    if (context.mounted) {
+                    Navigator.pushReplacementNamed(
+                        context, RouteName.reposicao);
+                  }
+                  })),
         ),
       ),
     );

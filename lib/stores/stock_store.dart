@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:get_storage/get_storage.dart';
@@ -8,7 +9,6 @@ import 'package:orama_admin/main.dart';
 import 'package:orama_admin/others/insumos.dart';
 import 'package:orama_admin/routes/routes.dart';
 import 'package:orama_admin/utils/offline_model.dart';
-import 'package:uuid/uuid.dart';
 import 'package:orama_admin/utils/extensions.dart';
 
 part 'stock_store.g.dart';
@@ -22,6 +22,14 @@ abstract class _StockStore with Store {
       .collection('relatorio');
 
   _StockStore() {}
+
+  @observable
+  DateTime selectedDate = DateTime.now();
+
+  @action
+  void setSelectedDate(DateTime date) {
+    selectedDate = date;
+  }
 
   final box = GetStorage();
   final FirebaseFirestore firestore = secondaryFirestore;
@@ -48,6 +56,11 @@ abstract class _StockStore with Store {
 
   // OFFLINE--------------------------------------
 
+  Future<bool> hasInternetConnection() async {
+    final result = await Connectivity().checkConnectivity();
+    return result != ConnectivityResult.none;
+  }
+
   // Salva relatórios no cache local
   @action
   void saveReportsToCache(List<Map<String, dynamic>> reports) {
@@ -60,7 +73,7 @@ abstract class _StockStore with Store {
     final cachedReports = box.read<List<dynamic>>('cachedReports') ?? [];
     return cachedReports
         .cast<Map<String, dynamic>>()
-        .where((report) => report['UsuarioId'] != userId)
+        .where((report) => report['UsuarioId'] == userId)
         .toList();
   }
 
@@ -88,32 +101,43 @@ abstract class _StockStore with Store {
     print('Fila offline limpa.');
   }
 
+  bool _isSyncingAll = false;
+  bool _isSyncingLocal = false;
+
   /// Tenta sincronizar todos os dados pendentes no Firestore
   @action
   Future<void> syncAllPendingData() async {
-    final queue = getOfflineQueue();
-    final failedQueue = [];
+    if (_isSyncingAll) return;
+    _isSyncingAll = true;
 
-    for (var offlineData in queue) {
-      try {
-        final ref =
-            firestore.doc('${offlineData.collectionPath}/${offlineData.docId}');
-        if (offlineData.isUpdate) {
-          await ref.set(offlineData.data, SetOptions(merge: true));
-        } else {
-          await ref.set(offlineData.data);
+    try {
+      final queue = getOfflineQueue();
+      final failedQueue = [];
+
+      for (var offlineData in queue) {
+        try {
+          final ref = firestore
+              .doc('${offlineData.collectionPath}/${offlineData.docId}');
+          if (offlineData.isUpdate) {
+            await ref.set(offlineData.data, SetOptions(merge: true));
+          } else {
+            await ref.set(offlineData.data);
+          }
+          print('Sincronizado com sucesso: ${offlineData.toJson()}');
+        } catch (e) {
+          print('Erro ao sincronizar: $e');
+          failedQueue.add(offlineData); // Adiciona à lista de falhas
         }
-        print('Sincronizado com sucesso: ${offlineData.toJson()}');
-      } catch (e) {
-        print('Erro ao sincronizar: $e');
-        failedQueue.add(offlineData); // Adiciona à lista de falhas
       }
-    }
 
-    if (failedQueue.isEmpty) {
-      await clearOfflineQueue();
-    } else {
-      await box.write(offlineKey, failedQueue.map((e) => e.toJson()).toList());
+      if (failedQueue.isEmpty) {
+        await clearOfflineQueue();
+      } else {
+        await box.write(
+            offlineKey, failedQueue.map((e) => e.toJson()).toList());
+      }
+    } finally {
+      _isSyncingAll = false;
     }
   }
 
@@ -122,21 +146,32 @@ abstract class _StockStore with Store {
     String key, {
     required Future<void> Function(Map<String, dynamic> operation) onSync,
   }) async {
-    final box = GetStorage();
-    List<Map<String, dynamic>> unsyncedOperations = box.read(key) ?? [];
+    if (_isSyncingLocal) return;
+    _isSyncingLocal = true;
 
-    // Tenta sincronizar cada operação pendente
-    for (var operation in unsyncedOperations) {
-      try {
-        // Função de callback que enviará efetivamente ao Firestore
-        await onSync(operation);
-      } catch (e) {
-        print("Falha ao sincronizar operação: $e");
+    try {
+      final box = GetStorage();
+      final List<Map<String, dynamic>> unsyncedOperations =
+          (box.read(key) ?? []).cast<Map<String, dynamic>>();
+      final failed = <Map<String, dynamic>>[];
+
+      for (var operation in unsyncedOperations) {
+        try {
+          await onSync(operation);
+        } catch (e) {
+          print("Falha ao sincronizar operação: $e");
+          failed.add(operation);
+        }
       }
-    }
 
-    // Limpa o array após tentar sincronizar tudo
-    await box.remove(key);
+      if (failed.isEmpty) {
+        await box.remove(key);
+      } else {
+        await box.write(key, failed);
+      }
+    } finally {
+      _isSyncingLocal = false;
+    }
   }
 
   void addItemToReport2({
@@ -218,6 +253,19 @@ abstract class _StockStore with Store {
   @action
   Future<void> fetchReports() async {
     reports.clear();
+
+    // 1. Adiciona relatórios offline pendentes da fila 'offline_queue'
+    final queue = getOfflineQueue();
+    final pendingReports = queue
+        .where((q) => q.collectionPath.contains('reposicao'))
+        .map((q) => {
+              ...q.data,
+              'ID': q.docId,
+              'offline': true, // marcador opcional
+            })
+        .toList();
+    reports.addAll(pendingReports);
+
     try {
       final querySnapshot = await firestore
           .collection('users')
@@ -229,7 +277,7 @@ abstract class _StockStore with Store {
           .map((doc) => {...doc.data(), 'ID': doc.id})
           .toList();
 
-      // Salvar localmente para acesso offline
+      // 2. Salva localmente para acesso offline futuro
       await box.write('localReports', loadedReports);
 
       reports.addAll(loadedReports);
@@ -311,7 +359,9 @@ abstract class _StockStore with Store {
         .doc('Db4XIYcNMhUgYXvF6JDJJxbc3h82')
         .collection('relatorio');
 
-    final uuid = reportId ?? Uuid().v4();
+    final dataFormat = DateFormat('dd-MM-yyyy HH:mm').format(DateTime.now());
+    final comandaId = '${dataFormat} - ${loja}';
+    final uuid = reportId ?? comandaId;
     final DateTime now = DateTime.now().toUtc().add(const Duration(hours: -3));
     final String formattedDate = DateFormat('dd/MM/yyyy HH:mm').format(now);
 
@@ -594,7 +644,9 @@ abstract class _StockStore with Store {
     }
 
     final userId = user.uid;
-    final uuid = reportId ?? Uuid().v4();
+    final dataFormat = DateFormat('dd-MM-yyyy HH:mm').format(DateTime.now());
+    final comandaId = '${dataFormat} - ${loja}';
+    final uuid = reportId ?? comandaId;
     final DateTime now = DateTime.now().toUtc().add(Duration(hours: -3));
     final String formattedDate = DateFormat('dd/MM/yyyy HH:mm').format(now);
 
@@ -1047,293 +1099,373 @@ abstract class _StockStore with Store {
 
 // REPOSIÇÃO ---------------------------------------------
 
-@observable
-Map<String, dynamic> quantityValuesRepo = {}; // Valores de quantidade
+  @observable
+  Map<String, dynamic> quantityValuesRepo = {}; // Valores de quantidade
 
-@observable
-Map<String, dynamic> quantityValuesEditRepo = {}; // Valores de quantidade para edição
+  @observable
+  Map<String, dynamic> quantityValuesEditRepo =
+      {}; // Valores de quantidade para edição
 
-@observable
-Map<String, dynamic> pesoValuesRepo = {}; // Novo mapa para armazenar valores de peso
+  @observable
+  Map<String, dynamic> pesoValuesRepo =
+      {}; // Novo mapa para armazenar valores de peso
 
-@action
-void updateQuantityEdit(String itemName, String quantity) {
-  if (_isValidNumber(quantity) && quantity.isNotEmpty) {
-    quantityValuesEditRepo[itemName] = quantity;
-    box.write('quantityValuesEditRepo', quantityValuesEditRepo);
+  List<Map<String, dynamic>> allStores = [];
+
+  Future<void> fetchAllStores() async {
+    try {
+      // Carrega relatórios da nuvem
+      await fetchReportsUser('Db4XIYcNMhUgYXvF6JDJJxbc3h82');
+
+      // Filtra relatórios (excluindo o do ID fixo)
+      final allReports = [
+        ...reports.where(
+            (report) => report['UsuarioId'] != 'Db4XIYcNMhUgYXvF6JDJJxbc3h82'),
+        ...specificReports.where(
+            (report) => report['UsuarioId'] != 'Db4XIYcNMhUgYXvF6JDJJxbc3h82'),
+      ];
+
+      // Agrupa lojas únicas com cidade
+      final storeSet = <String, String>{};
+      for (var report in allReports) {
+        final loja = report['Loja'];
+        final cidade = report['Cidade'] ?? 'Indefinida';
+        if (loja != null) storeSet[loja] = cidade;
+      }
+
+      allStores = storeSet.entries
+          .map((e) => {'nome': e.key, 'cidade': e.value})
+          .toList();
+
+      // Salva em cache
+      saveStoresToCache(allStores);
+    } catch (e) {
+      print('Erro ao buscar relatórios e gerar lista de lojas: $e');
+
+      // fallback para cache local
+      allStores = loadCachedStores();
+    }
   }
-}
 
-@action
-void updateQuantityReposicao(String itemName, String quantity) {
-  if (_isValidNumber(quantity)) {
-    quantityValuesRepo[itemName] = quantity;
-    box.write('quantityValuesRepo', quantityValuesRepo);
+  void saveStoresToCache(List<Map<String, dynamic>> stores) {
+    final box = GetStorage();
+    box.write('cached_stores', stores);
   }
-}
 
-@action
-void updatePesoReposicao(String itemName, String peso) {
-  if (_isValidNumber(peso)) {
-    pesoValuesRepo[itemName] = peso;
-    box.write('pesoValuesRepo', pesoValuesRepo);
+  List<Map<String, dynamic>> loadCachedStores() {
+    final box = GetStorage();
+    final cached = box.read('cached_stores');
+
+    if (cached is List) {
+      return cached.cast<Map<String, dynamic>>();
+    } else {
+      return [];
+    }
   }
-}
 
-@action
-Future<void> updateReposicao(
-  String reportId,
-  String nome,
-  String city,
-  String loja,
-  String data,
-  Map<String, dynamic> reportData,
-) async {
-  final DateTime now = DateTime.now().toUtc().add(const Duration(hours: -3));
-  final String formattedDate = DateFormat('dd/MM/yyyy HH:mm').format(now);
-
-  final categorias = (reportData['Categorias'] as List<dynamic>?)
-      ?.map((categoria) {
-        final categoryName = categoria['Categoria'];
-        final items = (categoria['Itens'] as List<dynamic>)
-            .map((item) {
-              final itemName = item['Item'];
-              final key = generateKey(categoryName, itemName);
-              final quantidadeAtual = quantityValuesEditRepo[key]?.trim() ?? '';
-              final pesoAtual = pesoValuesRepo[key]?.trim() ?? '';
-
-              return {
-                'Item': itemName,
-                'Quantidade': quantidadeAtual.isNotEmpty
-                    ? quantidadeAtual
-                    : item['Quantidade'],
-                'Qtd Anterior': item['Quantidade'] ?? '0',
-                'Qtd Minima': item['Qtd Minima'] ?? '',
-                'Peso': pesoAtual,
-                'Tipo': item['Tipo'] ?? '',
-              };
-            })
-            .where((item) => item['Quantidade'] != '')
-            .toList();
-
-        return items.isNotEmpty
-            ? {'Categoria': categoryName, 'Itens': items}
-            : null;
-      })
-      .where((categoria) => categoria != null)
-      .toList();
-
-  final updatedData = {
-    'ID': reportId,
-    'Nome do usuario': nome,
-    'Data': formattedDate,
-    'Cidade': city,
-    'Loja': loja,
-    'Categorias': categorias ?? [],
-  };
-
-  try {
-    await firestore
-        .collection('users')
-        .doc('Db4XIYcNMhUgYXvF6JDJJxbc3h82')
-        .collection('reposicao')
-        .doc(reportId)
-        .set(updatedData, SetOptions(merge: true));
-
-    print("Reposição atualizada online: $updatedData");
-  } catch (e) {
-    print("Erro ou sem conexão. Salvando atualização offline...");
-    final offlineDoc = OfflineData(
-      data: updatedData,
-      collectionPath: 'users/Db4XIYcNMhUgYXvF6JDJJxbc3h82/reposicao',
-      docId: reportId,
-      isUpdate: true,
-    );
-    await addToOfflineQueue(offlineDoc);
+  @action
+  void updateQuantityEdit(String itemName, String quantity) {
+    if (_isValidNumber(quantity) && quantity.isNotEmpty) {
+      quantityValuesEditRepo[itemName] = quantity;
+      box.write('quantityValuesEditRepo', quantityValuesEditRepo);
+    }
   }
-}
 
-@action
-Future<String> copyReportToReposicao(
-    Map<String, dynamic> report, String newName) async {
-  try {
-    final categorias = report['Categorias'] as List<dynamic>? ?? [];
-    final reposicaoCategorias = categorias.map((categoria) {
-      final items = (categoria['Itens'] as List<dynamic>).map((item) {
+  @action
+  void updateQuantityReposicao(String itemName, String quantity) {
+    if (_isValidNumber(quantity)) {
+      quantityValuesRepo[itemName] = quantity;
+      box.write('quantityValuesRepo', quantityValuesRepo);
+    }
+  }
+
+  @action
+  void updatePesoReposicao(String itemName, String peso) {
+    if (_isValidNumber(peso)) {
+      pesoValuesRepo[itemName] = peso;
+      box.write('pesoValuesRepo', pesoValuesRepo);
+    }
+  }
+
+  @action
+  Future<void> updateReposicao(
+    String reportId,
+    String nome,
+    String city,
+    String loja,
+    String data,
+    Map<String, dynamic> reportData,
+  ) async {
+    final DateTime now = DateTime.now().toUtc().add(const Duration(hours: -3));
+    final String formattedDate = DateFormat('dd/MM/yyyy HH:mm').format(now);
+
+    final categorias = (reportData['Categorias'] as List<dynamic>?)
+        ?.map((categoria) {
+          final categoryName = categoria['Categoria'];
+          final items = (categoria['Itens'] as List<dynamic>)
+              .map((item) {
+                final itemName = item['Item'];
+                final key = generateKey(categoryName, itemName);
+                final quantidadeAtual =
+                    quantityValuesEditRepo[key]?.trim() ?? '';
+                final pesoAtual = pesoValuesRepo[key]?.trim() ?? '';
+
+                return {
+                  'Item': itemName,
+                  'Quantidade': quantidadeAtual.isNotEmpty
+                      ? quantidadeAtual
+                      : item['Quantidade'],
+                  'Qtd Anterior': item['Quantidade'] ?? '0',
+                  'Qtd Minima': item['Qtd Minima'] ?? '',
+                  'Peso': pesoAtual,
+                  'Tipo': item['Tipo'] ?? '',
+                };
+              })
+              .where((item) => item['Quantidade'] != '')
+              .toList();
+
+          return items.isNotEmpty
+              ? {'Categoria': categoryName, 'Itens': items}
+              : null;
+        })
+        .where((categoria) => categoria != null)
+        .toList();
+
+    final updatedData = {
+      'ID': reportId,
+      'Nome do usuario': nome,
+      'Data': formattedDate,
+      'Cidade': city,
+      'Loja': loja,
+      'Categorias': categorias ?? [],
+    };
+
+    final collectionPath = 'users/Db4XIYcNMhUgYXvF6JDJJxbc3h82/reposicao';
+
+    if (!await hasInternetConnection()) {
+      final offlineDoc = OfflineData(
+        data: updatedData,
+        collectionPath: collectionPath,
+        docId: reportId,
+        isUpdate: true,
+      );
+      await addToOfflineQueue(offlineDoc);
+      clearRepoFields();
+      return;
+    }
+
+    try {
+      await firestore
+          .collection('users')
+          .doc('Db4XIYcNMhUgYXvF6JDJJxbc3h82')
+          .collection('reposicao')
+          .doc(reportId)
+          .set(updatedData, SetOptions(merge: true));
+
+      print("Reposição atualizada online: $updatedData");
+    } catch (e) {
+      print("Erro ou sem conexão. Salvando atualização offline...");
+      final offlineDoc = OfflineData(
+        data: updatedData,
+        collectionPath: 'users/Db4XIYcNMhUgYXvF6JDJJxbc3h82/reposicao',
+        docId: reportId,
+        isUpdate: true,
+      );
+      await addToOfflineQueue(offlineDoc);
+    }
+  }
+
+  @action
+  Future<String> copyReportToReposicao(
+      Map<String, dynamic> report, String newName) async {
+    try {
+      final categorias = report['Categorias'] as List<dynamic>? ?? [];
+      final reposicaoCategorias = categorias.map((categoria) {
+        final items = (categoria['Itens'] as List<dynamic>).map((item) {
+          return {
+            'Item': item['Item'],
+            'Quantidade': '',
+            'Qtd Anterior': item['Quantidade'] ?? '',
+            'Qtd Minima': item['Qtd Minima'],
+            'Peso': item['Peso'] ?? '',
+            'Tipo': item['Tipo'],
+          };
+        }).toList();
+
         return {
-          'Item': item['Item'],
-          'Quantidade': '',
-          'Qtd Anterior': item['Quantidade'] ?? '',
-          'Qtd Minima': item['Qtd Minima'],
-          'Peso': item['Peso'] ?? '',
-          'Tipo': item['Tipo'],
+          'Categoria': categoria['Categoria'],
+          'Itens': items,
         };
       }).toList();
 
-      return {
-        'Categoria': categoria['Categoria'],
-        'Itens': items,
+      final reposicaoData = {
+        'Nome do usuario': newName,
+        'Data': DateFormat('dd/MM/yyyy HH:mm').format(DateTime.now()),
+        'Cidade': report['Cidade'] ?? '',
+        'Loja': report['Loja'] ?? '',
+        'Categorias': reposicaoCategorias,
       };
-    }).toList();
 
-    final reposicaoData = {
-      'Nome do usuario': newName,
-      'Data': DateFormat('dd/MM/yyyy HH:mm').format(DateTime.now()),
-      'Cidade': report['Cidade'] ?? '',
-      'Loja': report['Loja'] ?? '',
-      'Categorias': reposicaoCategorias,
+      final dataFormat = DateFormat('dd-MM-yyyy HH:mm').format(DateTime.now());
+      final comandaId = '${dataFormat} - ${report['Loja']}';
+      final uuid = comandaId;
+
+      try {
+        await secondaryFirestore
+            .collection('users')
+            .doc('Db4XIYcNMhUgYXvF6JDJJxbc3h82')
+            .collection('reposicao')
+            .doc(uuid)
+            .set(reposicaoData, SetOptions(merge: true));
+        return uuid;
+      } catch (e) {
+        print("Erro ao salvar online. Salvando localmente...");
+        final offlineDoc = OfflineData(
+          data: reposicaoData,
+          collectionPath: 'users/Db4XIYcNMhUgYXvF6JDJJxbc3h82/reposicao',
+          docId: uuid,
+          isUpdate: false,
+        );
+        await addToOfflineQueue(offlineDoc);
+        return uuid;
+      }
+    } catch (e) {
+      throw Exception("Erro ao copiar relatório: $e");
+    }
+  }
+
+  @action
+  Future<void> updateEditReposicao(
+    String reportId,
+    String nome,
+    String city,
+    String loja,
+    String data,
+  ) async {
+    final DateTime now = DateTime.now().toUtc().add(const Duration(hours: -3));
+    final String formattedDate = DateFormat('dd/MM/yyyy HH:mm').format(now);
+
+    final categorias = insumos.keys
+        .map((category) {
+          final items = <Map<String, dynamic>>[];
+          for (var item in insumos[category] ?? []) {
+            final itemName = item['nome'];
+            final tipo = item['tipo'] ?? '';
+            final key = generateKey(category, itemName);
+            final quantidade = quantityValuesEditRepo[key]?.trim() ?? '';
+            final peso = pesoValuesRepo[key]?.trim() ?? '';
+
+            if (quantidade.isNotEmpty) {
+              items.add({
+                'Item': itemName,
+                'Quantidade': quantidade,
+                'Qtd Anterior': quantityValuesEditRepo[key] ?? '0',
+                'Peso': peso,
+                'Tipo': tipo,
+              });
+            }
+          }
+          return items.isNotEmpty
+              ? {'Categoria': category, 'Itens': items}
+              : null;
+        })
+        .where((categoria) => categoria != null)
+        .cast<Map<String, dynamic>>()
+        .toList();
+
+    final updatedData = {
+      'ID': reportId,
+      'Nome do usuario': nome,
+      'Data': formattedDate,
+      'Cidade': city,
+      'Loja': loja,
+      'Categorias': categorias,
     };
 
-    final uuid = Uuid().v4();
+    try {
+      await firestore
+          .collection('users')
+          .doc('Db4XIYcNMhUgYXvF6JDJJxbc3h82')
+          .collection('reposicao')
+          .doc(reportId)
+          .set(updatedData, SetOptions(merge: true));
+      clearRepoFields();
+      await fetchReports();
+    } catch (e) {
+      final offlineDoc = OfflineData(
+        data: updatedData,
+        collectionPath: 'users/Db4XIYcNMhUgYXvF6JDJJxbc3h82/reposicao',
+        docId: reportId,
+        isUpdate: true,
+      );
+      await addToOfflineQueue(offlineDoc);
+    }
+  }
 
+  Future<void> deleteReposicao(String reportId) async {
     try {
       await secondaryFirestore
           .collection('users')
           .doc('Db4XIYcNMhUgYXvF6JDJJxbc3h82')
           .collection('reposicao')
-          .doc(uuid)
-          .set(reposicaoData, SetOptions(merge: true));
-      return uuid;
+          .doc(reportId)
+          .delete();
+
+      reports.removeWhere((report) => report['ID'] == reportId);
+      print("Relatório excluído com sucesso.");
     } catch (e) {
-      print("Erro ao salvar online. Salvando localmente...");
-      final offlineDoc = OfflineData(
-        data: reposicaoData,
-        collectionPath: 'users/Db4XIYcNMhUgYXvF6JDJJxbc3h82/reposicao',
-        docId: uuid,
-        isUpdate: false,
-      );
-      await addToOfflineQueue(offlineDoc);
-      return uuid;
+      print("Erro ao excluir relatório: $e");
     }
-  } catch (e) {
-    throw Exception("Erro ao copiar relatório: $e");
   }
-}
 
-@action
-Future<void> updateEditReposicao(
-  String reportId,
-  String nome,
-  String city,
-  String loja,
-  String data,
-) async {
-  final DateTime now = DateTime.now().toUtc().add(const Duration(hours: -3));
-  final String formattedDate = DateFormat('dd/MM/yyyy HH:mm').format(now);
-
-  final categorias = insumos.keys
-      .map((category) {
-        final items = <Map<String, dynamic>>[];
-        for (var item in insumos[category] ?? []) {
-          final itemName = item['nome'];
-          final tipo = item['tipo'] ?? '';
-          final key = generateKey(category, itemName);
-          final quantidade = quantityValuesEditRepo[key]?.trim() ?? '';
-          final peso = pesoValuesRepo[key]?.trim() ?? '';
-
-          if (quantidade.isNotEmpty) {
-            items.add({
-              'Item': itemName,
-              'Quantidade': quantidade,
-              'Qtd Anterior': quantityValuesEditRepo[key] ?? '0',
-              'Peso': peso,
-              'Tipo': tipo,
-            });
-          }
-        }
-        return items.isNotEmpty ? {'Categoria': category, 'Itens': items} : null;
-      })
-      .where((categoria) => categoria != null)
-      .cast<Map<String, dynamic>>()
-      .toList();
-
-  final updatedData = {
-    'ID': reportId,
-    'Nome do usuario': nome,
-    'Data': formattedDate,
-    'Cidade': city,
-    'Loja': loja,
-    'Categorias': categorias,
-  };
-
-  try {
-    await firestore
-        .collection('users')
-        .doc('Db4XIYcNMhUgYXvF6JDJJxbc3h82')
-        .collection('reposicao')
-        .doc(reportId)
-        .set(updatedData, SetOptions(merge: true));
-    clearRepoFields();
-    await fetchReports();
-  } catch (e) {
-    print("Erro ao atualizar reposição: $e");
+  @action
+  void clearRepoFields() {
+    quantityValuesRepo.clear();
+    quantityValuesEditRepo.clear();
+    pesoValuesRepo.clear();
   }
-}
 
-Future<void> deleteReposicao(String reportId) async {
-  try {
-    await secondaryFirestore
-        .collection('users')
-        .doc('Db4XIYcNMhUgYXvF6JDJJxbc3h82')
-        .collection('reposicao')
-        .doc(reportId)
-        .delete();
-
-    reports.removeWhere((report) => report['ID'] == reportId);
-    print("Relatório excluído com sucesso.");
-  } catch (e) {
-    print("Erro ao excluir relatório: $e");
+  String generateKey(String category, String itemName) {
+    return (category == 'BALDES' || category == 'POTES')
+        ? '${category}_$itemName'
+        : itemName;
   }
-}
 
-@action
-void clearRepoFields() {
-  quantityValuesRepo.clear();
-  quantityValuesEditRepo.clear();
-  pesoValuesRepo.clear();
-}
+  void populateFieldsWithEditRepo(Map<String, dynamic> reportData) {
+    final categorias = reportData['Categorias'] as List<dynamic>?;
 
-String generateKey(String category, String itemName) {
-  return (category == 'BALDES' || category == 'POTES')
-      ? '${category}_$itemName'
-      : itemName;
-}
+    categorias?.forEach((categoria) {
+      final categoryName = categoria['Categoria'];
+      final itens = categoria['Itens'] as List<dynamic>;
 
-void populateFieldsWithEditRepo(Map<String, dynamic> reportData) {
-  final categorias = reportData['Categorias'] as List<dynamic>?;
+      for (final item in itens) {
+        final itemName = item['Item'];
+        final key = generateKey(categoryName, itemName);
+        final quantidade = item['Quantidade']?.toString() ?? '0';
+        final peso = item['Peso']?.toString() ?? '';
 
-  categorias?.forEach((categoria) {
-    final categoryName = categoria['Categoria'];
-    final itens = categoria['Itens'] as List<dynamic>;
+        quantityValuesEditRepo[key] = quantidade;
+        pesoValuesRepo[key] = peso;
+      }
+    });
+  }
 
-    for (final item in itens) {
-      final itemName = item['Item'];
-      final key = generateKey(categoryName, itemName);
-      final quantidade = item['Quantidade']?.toString() ?? '0';
-      final peso = item['Peso']?.toString() ?? '';
+  void populateFieldsWithRepo(Map<String, dynamic> reportData) {
+    final categorias = reportData['Categorias'] as List<dynamic>?;
 
-      quantityValuesEditRepo[key] = quantidade;
-      pesoValuesRepo[key] = peso;
-    }
-  });
-}
+    categorias?.forEach((categoria) {
+      final categoryName = categoria['Categoria'];
+      final itens = categoria['Itens'] as List<dynamic>;
 
-void populateFieldsWithRepo(Map<String, dynamic> reportData) {
-  final categorias = reportData['Categorias'] as List<dynamic>?;
+      for (final item in itens) {
+        final itemName = item['Item'];
+        final key = generateKey(categoryName, itemName);
+        final quantidadeAnterior = item['Quantidade'] ?? '';
+        final peso = item['Peso'] ?? '';
 
-  categorias?.forEach((categoria) {
-    final categoryName = categoria['Categoria'];
-    final itens = categoria['Itens'] as List<dynamic>;
-
-    for (final item in itens) {
-      final itemName = item['Item'];
-      final key = generateKey(categoryName, itemName);
-      final quantidadeAnterior = item['Quantidade'] ?? '';
-      final peso = item['Peso'] ?? '';
-
-      quantityValuesRepo[key] = ''; // Quantidade inicial vazia
-      pesoValuesRepo[key] = peso;
-    }
-  });
-}
+        quantityValuesRepo[key] = ''; // Quantidade inicial vazia
+        pesoValuesRepo[key] = peso;
+      }
+    });
+  }
 }

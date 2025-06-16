@@ -1,1 +1,38 @@
-{"flutter":{"platforms":{"android":{"default":{"projectId":"orama-checklist","appId":"1:263340861974:android:1e15bdf0862ff26aa3a337","fileOutput":"android/app/google-services.json"}},"dart":{"lib/firebase_options.dart":{"projectId":"orama-checklist","configurations":{"android":"1:263340861974:android:1e15bdf0862ff26aa3a337","web":"1:263340861974:web:c15c1690a64abaf0a3a337"}}}}}}
+{
+  "flutter": {
+    "platforms": {
+      "android": {
+        "default": {
+          "projectId": "orama-checklist",
+          "appId": "1:263340861974:android:1e15bdf0862ff26aa3a337",
+          "fileOutput": "android/app/google-services.json"
+        }
+      },
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "orama-checklist",
+          "configurations": {
+            "android": "1:263340861974:android:1e15bdf0862ff26aa3a337",
+            "web": "1:263340861974:web:c15c1690a64abaf0a3a337"
+          }
+        }
+      }
+    }
+  },
+  "functions": [
+    {
+      "source": "functions",
+      "codebase": "default",
+      "ignore": [
+        "node_modules",
+        ".git",
+        "firebase-debug.log",
+        "firebase-debug.*.log",
+        "*.local"
+      ],
+      "predeploy": [
+        "npm --prefix ./functions run lint"
+      ]
+    }
+  ]
+}

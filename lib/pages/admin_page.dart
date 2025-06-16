@@ -1,6 +1,8 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:orama_admin/others/constants.dart';
 import 'package:orama_admin/pages/estoque_page.dart';
+import 'package:orama_admin/pages/loja/gerenciamento/estoqueActions_page.dart';
 import 'package:orama_admin/pages/relatorios_descartaveis_page.dart';
 import 'package:orama_admin/pages/relatorios_sorvete_page.dart';
 import 'package:orama_admin/pages/sabores_admin_page.dart';
@@ -15,42 +17,29 @@ class AdminPage extends StatefulWidget {
 }
 
 class _AdminPageState extends State<AdminPage> {
-  final List<String> pdvs = [
-    'Brunholli',
-    'Michelleto',
-    'Travitália',
-    'Da Roça',
-    'Bendito',
-    'Marquezim',
-    'Sassafraz',
-    'Fontebasso',
-    'Eventos 1',
-    'Eventos 2',
-  ];
   int _currentIndex = 0;
 
-  void onTabTapped(int index) {
-    if (index == 1) {
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (context) => EstoqueAdminPage()),
-      );
+  void _navigateToPage(int index) {
+    switch (index) {
+      case 1:
+        _replaceWith(EstoqueAdminPage());
+        break;
+      case 2:
+        _replaceWith(RelatoriosSorvetePage());
+        break;
+      case 3:
+        _replaceWith(RelatoriosDescartaveisPage());
+        break;
+      default:
+        setState(() => _currentIndex = index);
     }
-    if (index == 2) {
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (context) => RelatoriosSorvetePage()),
-      );
-    } else if (index == 3) {
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (context) => RelatoriosDescartaveisPage()),
-      );
-    } else {
-      setState(() {
-        _currentIndex = index;
-      });
-    }
+  }
+
+  void _replaceWith(Widget page) {
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(builder: (_) => page),
+    );
   }
 
   Future<void> _logout() async {
@@ -69,19 +58,24 @@ class _AdminPageState extends State<AdminPage> {
     return PopScope(
       canPop: false,
       onPopInvoked: (bool didPop) async {
-        if (didPop) {
-          return;
-        }
-        final bool shouldPop =
-            await DialogUtils.showBackDialog(context) ?? false;
-        if (context.mounted && shouldPop) {
-          Navigator.pop(context);
-        }
+        if (didPop) return;
+
+        final bool shouldPop = await DialogUtils.showConfirmationDialog(
+              context: context,
+              title: 'Confirmação de Saída',
+              content: 'Você deseja cancelar?',
+              confirmText: 'Sim',
+              cancelText: 'Não',
+              onConfirm: () {
+                Navigator.pop(context);
+              },
+            ) ??
+            false;
       },
       child: Scaffold(
         bottomNavigationBar: CustomBottomNavigationBar(
           currentIndex: _currentIndex,
-          onTabTapped: onTabTapped,
+          onTabTapped: _navigateToPage,
         ),
         appBar: AppBar(
           iconTheme: IconThemeData(color: Colors.white),
@@ -91,59 +85,65 @@ class _AdminPageState extends State<AdminPage> {
           elevation: 4,
           backgroundColor: const Color(0xff60C03D),
           scrolledUnderElevation: 0,
+          actions: [
+            IconButton(
+              icon: Icon(Icons.logout),
+              onPressed: () async {
+                await FirebaseAuth.instance.signOut();
+                Navigator.of(context).pushReplacementNamed(RouteName.login);
+              },
+            ),
+          ],
         ),
         drawer: Menu(),
-        body: _currentIndex == 0 ? PDVPage() : SizedBox.shrink(),
+        body: _currentIndex == 0 ? EstoqueActionsPage() : SizedBox.shrink(),
       ),
     );
   }
 }
 
 class PDVPage extends StatelessWidget {
-  final List<String> pdvs = [
-    'Pesqueiro',
-    'Brunholli',
-    'Michelleto',
-    'Travitália',
-    'Da Roça',
-    'Bendito',
-    'Marquezim',
-    'Vibe',
-    'Sassafraz',
-    'Fontebasso',
-  ];
-
   @override
   Widget build(BuildContext context) {
-    return GridView.builder(
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
+    return Scaffold(
+      appBar: AppBar(
+        iconTheme: const IconThemeData(color: Colors.white),
+        title: const Text(
+          'Selecione o PDV',
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.w500),
+        ),
+        backgroundColor: const Color(0xff60C03D),
       ),
-      itemCount: pdvs.length,
-      itemBuilder: (context, index) {
-        return Padding(
-          padding: const EdgeInsets.all(5.0),
-          child: GestureDetector(
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => SaboresAdminPage(pdv: pdvs[index]),
-                ),
-              );
-            },
-            child: Card(
-              elevation: 1,
-              child: Center(
-                child: Text(
-                  pdvs[index],
-                  style: const TextStyle(fontSize: 16),
+      body: GridView.builder(
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 2,
+        ),
+        itemCount: pdvs.length,
+        itemBuilder: (context, index) {
+          return Padding(
+            padding: const EdgeInsets.all(5.0),
+            child: GestureDetector(
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => SaboresAdminPage(pdv: pdvs[index]),
+                  ),
+                );
+              },
+              child: Card(
+                elevation: 1,
+                child: Center(
+                  child: Text(
+                    pdvs[index],
+                    style: const TextStyle(fontSize: 16),
+                  ),
                 ),
               ),
             ),
-          ),
-        );
-      },
+          );
+        },
+      ),
     );
   }
 }

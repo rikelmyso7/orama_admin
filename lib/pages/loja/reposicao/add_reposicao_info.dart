@@ -1,5 +1,8 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:get_storage/get_storage.dart';
+import 'package:intl/intl.dart';
+import 'package:orama_admin/main.dart';
 import 'package:orama_admin/others/field_validators.dart';
 import 'package:orama_admin/pages/loja/reposicao/reposicao_formulario.dart';
 import 'package:orama_admin/stores/stock_store.dart';
@@ -19,12 +22,7 @@ class _AddReposicaoInfoState extends State<AddReposicaoInfo> {
   final formKey = GlobalKey<FormState>();
   final ValueNotifier<bool> isFormValid = ValueNotifier<bool>(false);
 
-  // Dados das cidades e lojas
-  final Map<String, List<String>> cityStores = {
-    "Jundiaí": ["Orama Paineiras", "Orama Retiro"],
-    "Itupeva": ["Orama Itupeva"],
-    "Campinas": ["Platz", "Bar da Cachoeira"],
-  };
+  Map<String, List<String>> cityStores = {};
 
   String? selectedCity;
   String? selectedStore;
@@ -35,7 +33,86 @@ class _AddReposicaoInfoState extends State<AddReposicaoInfo> {
   void initState() {
     super.initState();
     _nameController.addListener(_validateForm);
+
+    final box = GetStorage();
+    final data = box.read('cityStores');
+
+    if (data != null) {
+      setState(() {
+        cityStores = Map<String, List<String>>.from(
+          (data as Map)
+              .map((key, value) => MapEntry(key, List<String>.from(value))),
+        );
+      });
+    }
   }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    carregarLojasDoFirebase().then((_) {
+      final data = GetStorage().read('cityStores');
+      if (data != null) {
+        setState(() {
+          cityStores = Map<String, List<String>>.from(
+            (data as Map)
+                .map((key, value) => MapEntry(key, List<String>.from(value))),
+          );
+        });
+      }
+    });
+  }
+
+  Future<void> carregarLojasDoFirebase() async {
+  final firestore = secondaryFirestore;
+  final box = GetStorage();
+
+  try {
+    final snapshot = await firestore.collection('lojas').get();
+
+    final Map<String, List<String>> lojasMap = {};
+
+    for (var doc in snapshot.docs) {
+      final data = doc.data();
+      final cidade = data['cidade'];
+      final nome = data['nome'];
+
+      if (cidade != null && nome != null) {
+        lojasMap.putIfAbsent(cidade, () => []).add(nome);
+      }
+    }
+
+    // Ordena listas para garantir comparação correta
+    lojasMap.forEach((key, value) => value.sort());
+
+    final storedRaw = box.read('cityStores');
+
+    final storedMap = storedRaw != null
+        ? Map<String, List<String>>.from(
+            (storedRaw as Map).map((k, v) => MapEntry(k, List<String>.from(v))),
+          )
+        : {};
+
+    // Verifica se houve mudança
+    bool isDifferent = lojasMap.length != storedMap.length ||
+        lojasMap.entries.any((entry) {
+          final storedList = storedMap[entry.key];
+          return storedList == null ||
+              storedList.length != entry.value.length ||
+              !ListEquality().equals(storedList, entry.value);
+        });
+
+    if (isDifferent) {
+      await box.write('cityStores', lojasMap);
+      print("Lojas atualizadas e salvas offline.");
+    } else {
+      print("Nenhuma mudança nas lojas detectada.");
+    }
+  } catch (e) {
+    print("Erro ao carregar lojas: $e");
+  }
+}
+
 
   @override
   void dispose() {
@@ -54,6 +131,7 @@ class _AddReposicaoInfoState extends State<AddReposicaoInfo> {
   @override
   Widget build(BuildContext context) {
     final store = Provider.of<StockStore>(context);
+    final dataFormat = DateFormat('dd-MM-yyyy HH:mm').format(DateTime.now());
 
     return Scaffold(
       appBar: AppBar(
@@ -125,7 +203,8 @@ class _AddReposicaoInfoState extends State<AddReposicaoInfo> {
                                         loja: selectedStore!,
                                         reportData: null,
                                         city: selectedCity!,
-                                        reportId: Uuid().v4(),
+                                        reportId:
+                                            '${_nameController.text} - ${dataFormat} - ${selectedStore!}',
                                       ),
                                     ),
                                   );

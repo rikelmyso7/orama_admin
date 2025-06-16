@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:intl/intl.dart';
 import 'package:json_annotation/json_annotation.dart';
 import 'package:mobx/mobx.dart';
 import 'package:get_storage/get_storage.dart';
@@ -395,11 +396,14 @@ abstract class _ComandaStoreBase with Store {
           .doc('VFBwvWYLh8bnHQzMtgSKiBI4usE3')
           .collection('comandas');
 
+      final dataFormat = DateFormat('dd-MM-yyyy HH:mm').format(DateTime.now());
+      final comandaId = '${dataFormat} - ${comanda.pdv}';
+
       // Cria uma nova cópia da comanda com um novo ID
       final newComanda = Comanda(
         name: comanda.name,
         userId: comanda.userId,
-        id: Uuid().v4(), // Gera um novo ID
+        id: comandaId, // Gera um novo ID
         pdv: comanda.pdv,
         sabores: comanda.sabores,
         data: DateTime.now(),
@@ -470,8 +474,14 @@ class ComandaDescartaveis {
 
   factory ComandaDescartaveis.fromJson(Map<String, dynamic> json) {
     final itens = (json['itens'] as List<dynamic>?)
-            ?.map((item) => Map<String, String>.from(item as Map))
-            .toList() ??
+            ?.whereType<Map>() // garante que só vai mapear se for Map
+            .map((item) {
+          print(json);
+          return item.map((key, value) => MapEntry(
+                key.toString(),
+                value?.toString() ?? '',
+              ));
+        }).toList() ??
         [];
 
     if (itens.isEmpty && json.containsKey('quantidades')) {

@@ -7,6 +7,8 @@ import 'package:orama_admin/others/insumos.dart';
 import 'package:orama_admin/routes/routes.dart';
 import 'package:orama_admin/stores/stock_store.dart';
 import 'package:orama_admin/utils/addItemDialog.dart';
+import 'package:orama_admin/utils/offline_model.dart';
+import 'package:orama_admin/utils/show_snackbar.dart';
 import 'package:orama_admin/widgets/my_styles/my_input_field.dart';
 import 'package:provider/provider.dart';
 
@@ -37,30 +39,15 @@ class _CopiarReposicaoPageState extends State<CopiarReposicaoPage> {
   bool isDataLoaded = false;
   Map<String, TextEditingController> _quantityControllers = {};
   Map<String, TextEditingController> _pesoControllers = {};
+  Map<String, List<Map<String, dynamic>>> insumosFiltrados = {};
+  bool isLoading = true;
+  List<String> categoriasVisiveis = [];
 
   @override
   void initState() {
     super.initState();
     store = Provider.of<StockStore>(context, listen: false);
-    _initializeControllers(); // <- depois cria os controllers com os dados preenchidos
-    isDataLoaded = true;
-    print(widget.reportData);
-  }
-
-  void _initializeControllers() {
-    // NÃO preencher com valores do relatório anterior!
-    insumos.forEach((category, items) {
-      for (var item in items) {
-        final itemName = item['nome'];
-        final key = (category == 'BALDES' || category == 'POTES')
-            ? '${category}_$itemName'
-            : itemName;
-
-        // Inicializa os campos vazios para o usuário digitar
-        _quantityControllers[key] = TextEditingController();
-        _pesoControllers[key] = TextEditingController();
-      }
-    });
+    _loadInsumosFromFirestore();
   }
 
   @override
@@ -96,39 +83,96 @@ class _CopiarReposicaoPageState extends State<CopiarReposicaoPage> {
     return '';
   }
 
+  Future<void> _loadInsumosFromFirestore() async {
+    try {
+      final doc = await store.firestore
+          .collection('configuracoes_loja')
+          .doc('Repo Fabrica')
+          .get();
+
+      if (!doc.exists) {
+        if (context.mounted) {
+          ShowSnackBar(
+              context, 'Fábrica não encontrada no Firestore', Colors.red);
+        }
+        setState(() => isLoading = false);
+        return;
+      }
+
+      final data = doc.data()!;
+      final categorias = List<String>.from(data['categorias'] ?? []);
+      final rawInsumos = data['insumos'] as Map<String, dynamic>? ?? {};
+
+      final Map<String, List<Map<String, dynamic>>> parsedInsumos = {};
+      for (final entry in rawInsumos.entries) {
+        final categoria = entry.key;
+        final items = List<Map<String, dynamic>>.from(entry.value);
+        parsedInsumos[categoria] = items;
+      }
+
+      setState(() {
+        categoriasVisiveis = categorias;
+        insumosFiltrados = parsedInsumos;
+      });
+
+      _initializeControllers(); // Popula após carregar insumos
+    } catch (e) {
+      if (context.mounted) {
+        ShowSnackBar(context, 'Erro ao carregar insumos: $e', Colors.red);
+      }
+      setState(() => isLoading = false);
+    }
+  }
+
+  void _initializeControllers() {
+    for (final category in categoriasVisiveis) {
+      final items = insumosFiltrados[category] ?? [];
+      for (var item in items) {
+        final itemName = item['nome'];
+        final key = (category == 'BALDES' || category == 'POTES')
+            ? '${category}_$itemName'
+            : itemName;
+
+        _quantityControllers[key] = TextEditingController();
+        _pesoControllers[key] = TextEditingController();
+      }
+    }
+  }
+
   Future<void> updateEditReposicaoLocal() async {
     final DateTime now = DateTime.now().toUtc().add(const Duration(hours: -3));
     final String formattedDate = DateFormat('dd/MM/yyyy HH:mm').format(now);
 
-    final categorias = insumos.entries
-        .map((entry) {
-          final category = entry.key;
-          final items = <Map<String, dynamic>>[];
+    final categorias = categoriasVisiveis
+        .map((category) {
+          final items = insumosFiltrados[category]!
+              .map((item) {
+                final itemName = item['nome'];
+                final tipo = item['tipo'] ?? '';
+                final key = (category == 'BALDES' || category == 'POTES')
+                    ? '${category}_$itemName'
+                    : itemName;
 
-          for (var item in entry.value) {
-            final itemName = item['nome'];
-            final tipo = item['tipo'] ?? '';
-            final key = (category == 'BALDES' || category == 'POTES')
-                ? '${category}_$itemName'
-                : itemName;
+                final quantidadeAtual =
+                    _quantityControllers[key]?.text.trim() ?? '';
+                final peso = _pesoControllers[key]?.text.trim() ?? '';
+                final qtdAnterior =
+                    _getCopiedValue('Quantidade', itemName, category);
 
-            final quantidadeAtual =
-                _quantityControllers[key]?.text.trim() ?? '';
-            final peso = _pesoControllers[key]?.text.trim() ?? '';
-            final qtdAnterior =
-                _getCopiedValue('Quantidade', itemName, category);
-
-            // Salvar só se o usuário digitou algo novo
-            if (quantidadeAtual.isNotEmpty || peso.isNotEmpty) {
-              items.add({
-                'Item': itemName,
-                'Quantidade': quantidadeAtual,
-                'Qtd Anterior': qtdAnterior,
-                'Peso': peso,
-                'Tipo': tipo,
-              });
-            }
-          }
+                if (quantidadeAtual.isNotEmpty || peso.isNotEmpty) {
+                  return {
+                    'Item': itemName,
+                    'Quantidade': quantidadeAtual,
+                    'Qtd Anterior': qtdAnterior,
+                    'Peso': peso,
+                    'Tipo': tipo,
+                  };
+                }
+                return null;
+              })
+              .where((item) => item != null)
+              .cast<Map<String, dynamic>>()
+              .toList();
 
           return items.isNotEmpty
               ? {'Categoria': category, 'Itens': items}
@@ -157,7 +201,13 @@ class _CopiarReposicaoPageState extends State<CopiarReposicaoPage> {
       store.clearRepoFields();
       await store.fetchReports();
     } catch (e) {
-      print("Erro ao atualizar reposição: $e");
+      final offlineDoc = OfflineData(
+        data: updatedData,
+        collectionPath: 'users/Db4XIYcNMhUgYXvF6JDJJxbc3h82/reposicao',
+        docId: widget.reportId,
+        isUpdate: true,
+      );
+      await store.addToOfflineQueue(offlineDoc);
     }
   }
 
@@ -176,7 +226,7 @@ class _CopiarReposicaoPageState extends State<CopiarReposicaoPage> {
         }
       },
       child: DefaultTabController(
-        length: itemsForReport.keys.length,
+        length: categoriasVisiveis.length,
         child: Scaffold(
           appBar: AppBar(
             iconTheme: const IconThemeData(color: Colors.white),
@@ -184,8 +234,9 @@ class _CopiarReposicaoPageState extends State<CopiarReposicaoPage> {
               isScrollable: true,
               labelColor: Colors.white,
               indicatorColor: Colors.amber,
-              tabs:
-                  insumos.keys.map((category) => Tab(text: category)).toList(),
+              tabs: categoriasVisiveis
+                  .map((category) => Tab(text: category))
+                  .toList(),
             ),
             title: const Text(
               'Editar Reposição',
@@ -204,17 +255,18 @@ class _CopiarReposicaoPageState extends State<CopiarReposicaoPage> {
               IconButton(
                 color: Colors.white,
                 icon: const Icon(Icons.save),
-                onPressed: () async {
+                onPressed: () {
                   // Atualiza os valores no store antes de salvar
                   _quantityControllers.forEach((key, controller) {
                     store.updateQuantityEdit(key, controller.text);
                   });
-                  await updateEditReposicaoLocal();
+                  updateEditReposicaoLocal();
 
                   store.fetchReports();
                   store.clearRepoFields();
                   if (context.mounted) {
-                    Navigator.pop(context);
+                    Navigator.pushReplacementNamed(
+                        context, RouteName.reposicao);
                   }
                 },
               ),
@@ -223,9 +275,8 @@ class _CopiarReposicaoPageState extends State<CopiarReposicaoPage> {
           ),
           body: Observer(
             builder: (_) => TabBarView(
-              children: insumos.entries.map((entry) {
-                final category = entry.key;
-                final items = List.from(insumos[category]!)
+              children: categoriasVisiveis.map((category) {
+                final items = insumosFiltrados[category]!
                   ..sort((a, b) => a['nome'].compareTo(b['nome']));
 
                 return ListView.builder(
@@ -363,7 +414,7 @@ class _CopiarReposicaoPageState extends State<CopiarReposicaoPage> {
                                             crossAxisAlignment:
                                                 CrossAxisAlignment.center,
                                             children: [
-                                              Text(
+                                              const Text(
                                                 "Tipo",
                                                 style: const TextStyle(
                                                   fontWeight: FontWeight.bold,
