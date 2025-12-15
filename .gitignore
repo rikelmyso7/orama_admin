@@ -37,6 +37,8 @@ migrate_working_dir/
 /build/
 .packages
 coverage/
+firebase.json
+google-services-secundario.json
 
 # Symbolication related
 app.*.symbols
