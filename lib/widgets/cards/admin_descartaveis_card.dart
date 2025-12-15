@@ -3,6 +3,7 @@ import 'package:get_storage/get_storage.dart';
 import 'package:intl/intl.dart';
 import 'package:orama_admin/others/descartaveis.dart';
 import 'package:orama_admin/stores/comanda_store.dart';
+import 'package:orama_admin/utils/show_snackbar.dart';
 import 'package:orama_admin/widgets/cards/comanda_utils.dart';
 
 class AdminDescartavelCard extends StatelessWidget {
@@ -34,11 +35,7 @@ class AdminDescartavelCard extends StatelessWidget {
           title: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(comanda.pdv),
-              Text(
-                comanda.name,
-                style: TextStyle(fontWeight: FontWeight.bold),
-              ),
+              Text('${comanda.pdv} - ${comanda.name} - (${comanda.periodo})'),
             ],
           ),
           children: [
@@ -82,9 +79,11 @@ class AdminDescartavelCard extends StatelessWidget {
             style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
           ),
           IconButton(
-            icon: const Icon(Icons.delete),
-            onPressed: () => _deleteComanda(context),
-          ),
+              color: Colors.red,
+              icon: const Icon(Icons.delete),
+              onPressed: () {
+                _deleteComanda(context);
+              }),
         ],
       ),
     );
@@ -113,6 +112,7 @@ class AdminDescartavelCard extends StatelessWidget {
 
     if (shouldDelete == true) {
       onDelete(comanda.id);
+      ShowSnackBar(context, 'Relatório deletado com sucesso!', Colors.red);
     }
   }
 
@@ -129,46 +129,44 @@ class AdminDescartavelCard extends StatelessWidget {
   }
 
   Widget _buildDescartaveisList() {
-    if (comanda.quantidades.isEmpty) {
+    if (comanda.itens.isEmpty) {
       return Padding(
         padding: const EdgeInsets.symmetric(vertical: 4.0),
         child: Text("Nenhum descartável selecionado."),
       );
     }
 
+    List<Map<String, String>> sortedItems = List.from(comanda.itens);
+    sortedItems.sort((a, b) => (a['Item'] ?? '').compareTo(b['Item'] ?? ''));
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
-      children: List.generate(comanda.quantidades.length, (index) {
-        if (index < descartaveis.length) {
-          return Padding(
-            padding: const EdgeInsets.symmetric(vertical: 4.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  descartaveis[index].name,
-                  style: const TextStyle(fontWeight: FontWeight.bold),
-                ),
-                Padding(
-                  padding: const EdgeInsets.only(left: 16.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('- Quantidade: ${comanda.quantidades[index]}'),
-                      Text('- Observação: ${comanda.observacoes[index]}'),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          );
-        } else {
-          return Padding(
-            padding: const EdgeInsets.symmetric(vertical: 4.0),
-            child: Text("Índice inválido para descartáveis."),
-          );
-        }
-      }),
+      children: sortedItems.map((item) {
+        final itemName = item['Item'] ?? 'Item';
+        final quantity = item['Quantidade'] ?? '';
+        final observation = item['Observacao'] ?? '';
+
+        return Padding(
+          padding: const EdgeInsets.symmetric(vertical: 4.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                itemName,
+                style: const TextStyle(fontWeight: FontWeight.bold),
+              ),
+              Padding(
+                padding: const EdgeInsets.only(left: 15),
+                child: Text('- Quantidade: $quantity'),
+              ),
+              Padding(
+                padding: const EdgeInsets.only(left: 15),
+                child: Text('- Observação: $observation'),
+              ),
+            ],
+          ),
+        );
+      }).toList(),
     );
   }
 }

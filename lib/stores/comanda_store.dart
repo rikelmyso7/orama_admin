@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:intl/intl.dart';
 import 'package:json_annotation/json_annotation.dart';
 import 'package:mobx/mobx.dart';
 import 'package:get_storage/get_storage.dart';
@@ -89,6 +90,7 @@ class Sabor {
 
 class Comanda {
   String name;
+  String periodo;
   String userId;
   String id;
   String pdv;
@@ -96,6 +98,8 @@ class Comanda {
   DateTime data;
   String? caixaInicial;
   String? caixaFinal;
+  String? pixInicial;
+  String? pixFinal;
 
   Comanda({
     required this.name,
@@ -104,14 +108,27 @@ class Comanda {
     required this.userId,
     required this.sabores,
     required this.data,
-    this.caixaInicial,
-    this.caixaFinal,
+    this.periodo = '',
+    this.caixaInicial = '',
+    this.caixaFinal = '',
+    this.pixInicial = '',
+    this.pixFinal = '',
   });
 
   factory Comanda.fromJson(Map<String, dynamic> json) {
-    Map<String, Map<String, Map<String, int>>> saboresConvertidos = {};
-    Map<String, dynamic> saboresJson = json['sabores'];
+    if (!json.containsKey('id') ||
+        !json.containsKey('pdv') ||
+        !json.containsKey('sabores') ||
+        !json.containsKey('data')) {
+      throw ArgumentError('JSON inválido ou incompleto para a Comanda.');
+    }
 
+    final saboresJson = json['sabores'];
+    if (saboresJson is! Map<String, dynamic>) {
+      throw ArgumentError('Formato inválido para o campo "sabores".');
+    }
+
+    final saboresConvertidos = <String, Map<String, Map<String, int>>>{};
     saboresJson.forEach((categoria, saboresMap) {
       saboresConvertidos[categoria] = {};
       (saboresMap as Map<String, dynamic>).forEach((sabor, opcoesMap) {
@@ -121,7 +138,6 @@ class Comanda {
           '2/4': 0,
           '3/4': 0,
           '4/4': 0,
-          '4/4 Reposição': 0,
         };
         opcoesCompletas.addAll(Map<String, int>.from(opcoesMap));
         saboresConvertidos[categoria]![sabor] = opcoesCompletas;
@@ -135,44 +151,49 @@ class Comanda {
       data: DateTime.parse(json['data']),
       name: json['name'] ?? '',
       userId: json['userId'] ?? '',
+      periodo: json['periodo'] ?? '',
       caixaInicial: json['caixaInicial'],
       caixaFinal: json['caixaFinal'],
+      pixInicial: json['pixInicial'],
+      pixFinal: json['pixFinal'],
     );
   }
 
   Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'pdv': pdv,
+      'sabores': _filterSabores(sabores),
+      'data': data.toIso8601String(),
+      'name': name,
+      'periodo': periodo,
+      'userId': userId,
+      'caixaInicial': caixaInicial,
+      'caixaFinal': caixaFinal,
+      'pixInicial': pixInicial,
+      'pixFinal': pixFinal,
+    };
+  }
+
+  Map<String, Map<String, Map<String, int>>> _filterSabores(
+      Map<String, Map<String, Map<String, int>>> sabores) {
     final filteredSabores = <String, Map<String, Map<String, int>>>{};
 
     sabores.forEach((categoria, saboresMap) {
       final filteredCategoria = <String, Map<String, int>>{};
-
       saboresMap.forEach((sabor, opcoesMap) {
-        final filteredOpcoes = <String, int>{};
-
-        opcoesMap.forEach((opcao, quantidade) {
-          if (quantidade > 0) {
-            filteredOpcoes[opcao] = quantidade;
-          }
-        });
-
+        final filteredOpcoes = opcoesMap
+          ..removeWhere((_, quantidade) => quantidade <= 0);
         if (filteredOpcoes.isNotEmpty) {
           filteredCategoria[sabor] = filteredOpcoes;
         }
       });
-
       if (filteredCategoria.isNotEmpty) {
         filteredSabores[categoria] = filteredCategoria;
       }
     });
 
-    return {
-      'id': id,
-      'pdv': pdv,
-      'sabores': filteredSabores,
-      'data': data.toIso8601String(),
-      'name': name,
-      'userId': userId,
-    };
+    return filteredSabores;
   }
 }
 
@@ -185,6 +206,7 @@ abstract class _ComandaStoreBase with Store {
       .collection('users')
       .doc('VFBwvWYLh8bnHQzMtgSKiBI4usE3')
       .collection('comandas');
+
   final Uuid _uuid = Uuid();
 
   _ComandaStoreBase() {
@@ -378,11 +400,14 @@ abstract class _ComandaStoreBase with Store {
           .doc('VFBwvWYLh8bnHQzMtgSKiBI4usE3')
           .collection('comandas');
 
+      final dataFormat = DateFormat('dd-MM-yyyy HH:mm').format(DateTime.now());
+      final comandaId = '${dataFormat} - ${comanda.pdv}';
+
       // Cria uma nova cópia da comanda com um novo ID
       final newComanda = Comanda(
         name: comanda.name,
         userId: comanda.userId,
-        id: Uuid().v4(), // Gera um novo ID
+        id: comandaId, // Gera um novo ID
         pdv: comanda.pdv,
         sabores: comanda.sabores,
         data: DateTime.now(),
@@ -420,9 +445,10 @@ abstract class _ComandaStoreBase with Store {
 class ComandaDescartaveis {
   String name;
   String id;
+  String periodo;
   String pdv;
   String userId;
-  List<String> quantidades;
+  List<Map<String, String>> itens;
   List<String> observacoes;
   DateTime data;
 
@@ -431,20 +457,69 @@ class ComandaDescartaveis {
     required this.id,
     required this.pdv,
     required this.userId,
-    required this.quantidades,
+    required this.itens,
     required this.observacoes,
     required this.data,
+    this.periodo = '',
   });
 
+  // Formata as informações para exibição
+  String formatCardDisplay() {
+    final buffer = StringBuffer();
+
+    buffer.writeln('Nome do item: $name');
+    for (var item in itens) {
+      buffer.writeln('- Quantidade: ${item['Quantidade']}');
+    }
+    if (observacoes.isNotEmpty) {
+      buffer.writeln('- Observações: ${observacoes.join(', ')}');
+    }
+
+    return buffer.toString();
+  }
+
   factory ComandaDescartaveis.fromJson(Map<String, dynamic> json) {
+    final itens = (json['itens'] as List<dynamic>?)
+            ?.whereType<Map>() // garante que só vai mapear se for Map
+            .map((item) {
+          print(json);
+          return item.map((key, value) => MapEntry(
+                key.toString(),
+                value?.toString() ?? '',
+              ));
+        }).toList() ??
+        [];
+
+    if (itens.isEmpty && json.containsKey('quantidades')) {
+      final quantidades = List<String>.from(json['quantidades'] ?? []);
+      final itensAntigos = List.generate(quantidades.length, (index) {
+        return {
+          'Item': 'Item $index',
+          'Quantidade': quantidades[index],
+        };
+      });
+
+      return ComandaDescartaveis(
+        name: json['name'] ?? '',
+        id: json['id'] ?? '',
+        pdv: json['pdv'] ?? '',
+        periodo: json['periodo'] ?? '',
+        userId: json['userId'] ?? '',
+        itens: itensAntigos,
+        observacoes: List<String>.from(json['observacoes'] ?? []),
+        data: DateTime.tryParse(json['data'] ?? '') ?? DateTime.now(),
+      );
+    }
+
     return ComandaDescartaveis(
       name: json['name'] ?? '',
       id: json['id'] ?? '',
+      periodo: json['periodo'] ?? '',
       pdv: json['pdv'] ?? '',
       userId: json['userId'] ?? '',
-      quantidades: List<String>.from(json['quantidades'] ?? []),
+      itens: itens,
       observacoes: List<String>.from(json['observacoes'] ?? []),
-      data: DateTime.parse(json['data'] ?? DateTime.now().toIso8601String()),
+      data: DateTime.tryParse(json['data'] ?? '') ?? DateTime.now(),
     );
   }
 
@@ -453,28 +528,11 @@ class ComandaDescartaveis {
       'name': name,
       'id': id,
       'pdv': pdv,
+      'periodo': periodo,
       'userId': userId,
-      'quantidades': quantidades,
+      'itens': itens,
       'observacoes': observacoes,
       'data': data.toIso8601String(),
     };
-  }
-
-  Future<void> uploadToFirestore() async {
-    try {
-      final userId = GetStorage()
-          .read('userId'); // Troque para a forma que você obtém o ID do usuário
-      await FirebaseFirestore.instance
-          .collection('users')
-          .doc(userId)
-          .collection('descartaveis')
-          .doc(id)
-          .set(toJson());
-
-      print('Comanda de descartáveis enviada para o Firestore com sucesso.');
-    } catch (e) {
-      print('Erro ao enviar comanda de descartáveis para o Firestore: $e');
-      throw e;
-    }
   }
 }

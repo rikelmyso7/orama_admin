@@ -26,7 +26,6 @@ class _RelatoriosSorvetePageState extends State<RelatoriosSorvetePage>
   DateTime _selectedDate = DateTime.now();
   Future<List<String>>? _userIdsFuture;
   List<bool> _selectedComandas = [];
-
   late TabController _tabController;
 
   @override
@@ -34,11 +33,14 @@ class _RelatoriosSorvetePageState extends State<RelatoriosSorvetePage>
     super.initState();
     _userIdsFuture = _getUserIdsWithUserRole();
     _tabController = TabController(length: 2, vsync: this);
+    _tabController.addListener(() {
+      setState(() {});
+    });
+    _selectedComandas = [];
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final comandaStore = Provider.of<ComandaStore>(context, listen: false);
       setState(() {
-        _selectedComandas =
-            List.generate(comandaStore.comandas.length, (index) => false);
+        _selectedComandas = List.filled(comandaStore.comandas.length, false);
       });
     });
   }
@@ -88,9 +90,6 @@ class _RelatoriosSorvetePageState extends State<RelatoriosSorvetePage>
           .doc(comandaId)
           .delete();
       setState(() {});
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Comanda excluída com sucesso')),
-      );
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Erro ao excluir a comanda')),
@@ -105,14 +104,19 @@ class _RelatoriosSorvetePageState extends State<RelatoriosSorvetePage>
     return PopScope(
       canPop: false,
       onPopInvoked: (bool didPop) async {
-        if (didPop) {
-          return;
-        }
-        final bool shouldPop =
-            await DialogUtils.showBackDialog(context) ?? false;
-        if (context.mounted && shouldPop) {
-          Navigator.pop(context);
-        }
+        if (didPop) return;
+
+        final bool shouldPop = await DialogUtils.showConfirmationDialog(
+              context: context,
+              title: 'Confirmação de Saída',
+              content: 'Você deseja cancelar?',
+              confirmText: 'Sim',
+              cancelText: 'Não',
+              onConfirm: () {
+                Navigator.pop(context);
+              },
+            ) ??
+            false;
       },
       child: Scaffold(
         bottomNavigationBar: CustomBottomNavigationBar(
@@ -207,33 +211,80 @@ class _RelatoriosSorvetePageState extends State<RelatoriosSorvetePage>
                         return Center(child: Text("Erro ao carregar comandas"));
                       }
 
+                      final selectedTab =
+                          _tabController.index == 0 ? "INICIO" : "FINAL";
+
                       final comandas = snapshot.data
                               ?.expand((querySnapshot) => querySnapshot.docs)
                               .where((doc) {
-                                final comandaDate = DateTime.parse(doc['data']);
+                                // 1. converte o snapshot para Map
+                                final data = doc.data() as Map<String, dynamic>;
+
+                                // 2. data pode ser Timestamp ou String ISO
+                                final DateTime comandaDate =
+                                    data['data'] is Timestamp
+                                        ? (data['data'] as Timestamp).toDate()
+                                        : DateTime.parse(data['data']);
+
+                                // 3. pega campos de forma segura
+                                final String comandaName =
+                                    (data['name'] ?? '') as String;
+                                final String comandaPeriodo =
+                                    (data['periodo'] ?? '') as String;
+
+                                final bool isInicio =
+                                    comandaName.contains("INICIO") ||
+                                        comandaPeriodo == "INICIO";
+
                                 return comandaDate.year == _selectedDate.year &&
                                     comandaDate.month == _selectedDate.month &&
-                                    comandaDate.day == _selectedDate.day;
+                                    comandaDate.day == _selectedDate.day &&
+                                    ((selectedTab == "INICIO" && isInicio) ||
+                                        (selectedTab == "FINAL" && !isInicio));
                               })
                               .map((doc) => Comanda.fromJson(
                                   doc.data() as Map<String, dynamic>))
                               .toList() ??
                           [];
 
-                      final inicioComandas = comandas.where((comanda) {
-                        return comanda.name.contains("INICIO");
-                      }).toList();
+                      WidgetsBinding.instance.addPostFrameCallback((_) {
+                        if (_selectedComandas.length != comandas.length) {
+                          _selectedComandas =
+                              List.filled(comandas.length, false);
+                        }
+                      });
 
-                      final finalComandas = comandas.where((comanda) {
-                        return comanda.name.contains("FINAL");
-                      }).toList();
+                      if (comandas.isEmpty) {
+                        final noComandasMessage = selectedTab == "INICIO"
+                            ? "Nenhuma comanda disponível para INICIO"
+                            : "Nenhuma comanda disponível para FINAL";
+                        return Center(child: Text(noComandasMessage));
+                      }
 
-                      return TabBarView(
-                        controller: _tabController,
-                        children: [
-                          _buildComandasList(inicioComandas),
-                          _buildComandasList(finalComandas),
-                        ],
+                      return ListView.builder(
+                        itemCount: comandas.length,
+                        itemBuilder: (context, index) {
+                          final comanda = comandas[index];
+                          return AdminRelatoriosCard(
+                            comanda: comanda,
+                            onDelete: (comandaId) =>
+                                _deleteComanda(comanda.userId, comandaId),
+                            isSelected: index < _selectedComandas.length
+                                ? _selectedComandas[index]
+                                : false,
+                            onChanged: (value) {
+                              setState(() {
+                                _selectedComandas[index] = value!;
+                              });
+                            },
+                            isExpanded:
+                                comandaStore.getExpansionState(comanda.id),
+                            onExpansionChanged: (isExpanded) {
+                              comandaStore.setExpansionState(
+                                  comanda.id, isExpanded);
+                            },
+                          );
+                        },
                       );
                     },
                   );
@@ -243,39 +294,6 @@ class _RelatoriosSorvetePageState extends State<RelatoriosSorvetePage>
           ],
         ),
       ),
-    );
-  }
-
-  Widget _buildComandasList(List<Comanda> comandas) {
-    final comandaStore = Provider.of<ComandaStore>(context);
-
-    if (comandas.isEmpty) {
-      return Center(child: Text("Nenhuma comanda disponível."));
-    }
-
-    return ListView.builder(
-      itemCount: comandas.length,
-      itemBuilder: (context, index) {
-        if (index >= _selectedComandas.length) {
-          _selectedComandas.add(false);
-        }
-
-        final comanda = comandas[index];
-        return AdminRelatoriosCard(
-          comanda: comanda,
-          onDelete: (comandaId) => _deleteComanda(comanda.userId, comandaId),
-          isSelected: _selectedComandas[index],
-          onChanged: (value) {
-            setState(() {
-              _selectedComandas[index] = value!;
-            });
-          },
-          isExpanded: comandaStore.getExpansionState(comanda.id),
-          onExpansionChanged: (isExpanded) {
-            comandaStore.setExpansionState(comanda.id, isExpanded);
-          },
-        );
-      },
     );
   }
 

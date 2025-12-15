@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:get_storage/get_storage.dart';
 import 'package:intl/intl.dart';
 import 'package:orama_admin/stores/comanda_store.dart';
+import 'package:orama_admin/utils/show_snackbar.dart';
 import 'package:provider/provider.dart';
 
 class AdminRelatoriosCard extends StatelessWidget {
@@ -32,7 +33,7 @@ class AdminRelatoriosCard extends StatelessWidget {
         child: ExpansionTile(
           initiallyExpanded: isExpanded,
           onExpansionChanged: onExpansionChanged,
-          title: Text('${comanda.pdv} - ${comanda.name}'),
+          title: Text('${comanda.pdv} - ${comanda.name} (${comanda.periodo})'),
           children: [
             Padding(
               padding: const EdgeInsets.all(16.0),
@@ -59,10 +60,13 @@ class AdminRelatoriosCard extends StatelessWidget {
                         style: TextStyle(fontSize: 16),
                       ),
                       IconButton(
-                        icon: const Icon(Icons.copy),
-                        onPressed: () =>
-                            comandaStore.copyComandaToFirebase(comanda),
-                      ),
+                          color: Colors.green,
+                          icon: const Icon(Icons.copy),
+                          onPressed: () {
+                            comandaStore.copyComandaToFirebase(comanda);
+                            ShowSnackBar(context,
+                                'Relatório copiado com sucesso!', Colors.green);
+                          }),
                     ],
                   ),
                   const SizedBox(height: 8.0),
@@ -91,9 +95,11 @@ class AdminRelatoriosCard extends StatelessWidget {
                     const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
               ),
               IconButton(
-                icon: const Icon(Icons.delete),
-                onPressed: () => _deleteComanda(context),
-              ),
+                  color: Colors.red,
+                  icon: const Icon(Icons.delete),
+                  onPressed: () {
+                    _deleteComanda(context);
+                  }),
             ],
           ),
           if (comanda.caixaInicial != null && comanda.caixaInicial!.isNotEmpty)
@@ -104,6 +110,17 @@ class AdminRelatoriosCard extends StatelessWidget {
           if (comanda.caixaFinal != null && comanda.caixaFinal!.isNotEmpty)
             Text(
               'Caixa Final: R\$ ${comanda.caixaFinal}',
+              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+            ),
+          //PIX
+          if (comanda.pixInicial != null && comanda.pixInicial!.isNotEmpty)
+            Text(
+              'Pix Inicial: R\$ ${comanda.pixInicial}',
+              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+            ),
+          if (comanda.pixFinal != null && comanda.pixFinal!.isNotEmpty)
+            Text(
+              'Pix Final: R\$ ${comanda.pixFinal}',
               style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
             ),
         ],
@@ -134,6 +151,7 @@ class AdminRelatoriosCard extends StatelessWidget {
 
     if (shouldDelete == true) {
       onDelete(comanda.id);
+      ShowSnackBar(context, 'Relatório deletado com sucesso!', Colors.red);
     }
   }
 
@@ -159,7 +177,14 @@ class AdminRelatoriosCard extends StatelessWidget {
         }
 
         final isMassa = categoria.key == 'Massas';
-        final unidade = isMassa ? 'Tubo' : 'Cuba';
+        final isManteiga = saborEntry.key == 'Manteiga';
+        final isBolacha = categoria.key == 'Bolachas';
+        final unidade = isManteiga
+            ? 'Pote'
+            : (isMassa ? 'Tubos' : (isBolacha ? 'Pacotes' : 'Cubas'));
+        final saborNome = isManteiga
+            ? "Manteiga"
+            : (isMassa ? "Massa de ${saborEntry.key}" : saborEntry.key);
 
         return Padding(
           padding: const EdgeInsets.symmetric(vertical: 4.0),
@@ -167,17 +192,28 @@ class AdminRelatoriosCard extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                isMassa ? "Massa de ${saborEntry.key}" : saborEntry.key,
+                isBolacha ? "Bolacha de ${saborEntry.key}" : saborNome,
                 style: const TextStyle(fontWeight: FontWeight.bold),
               ),
               ...opcoesValidas.map((quantidadeEntry) {
+                String textoExibicao;
+                if (isManteiga) {
+                  textoExibicao = "- ${quantidadeEntry.key} $unidade";
+                } else if (isMassa) {
+                  textoExibicao = "- ${quantidadeEntry.key} $unidade";
+                } else if (isBolacha) {
+                  final quantidade = int.tryParse(quantidadeEntry.key) ?? 1;
+                  final unidadePlural = quantidade > 1 ? 'Pacotes' : 'Pacote';
+                  textoExibicao = "- ${quantidadeEntry.key} $unidadePlural";
+                } else {
+                  final unidadePlural =
+                      quantidadeEntry.value > 1 ? 'Cubas' : 'Cuba';
+                  textoExibicao =
+                      "- ${quantidadeEntry.value} $unidadePlural ${quantidadeEntry.key}";
+                }
                 return Padding(
                   padding: const EdgeInsets.only(left: 16.0),
-                  child: Text(
-                    isMassa
-                        ? "- ${quantidadeEntry.key} $unidade "
-                        : "- ${quantidadeEntry.value} $unidade ${quantidadeEntry.key}",
-                  ),
+                  child: Text(textoExibicao),
                 );
               }).toList(),
             ],

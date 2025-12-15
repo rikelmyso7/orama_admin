@@ -3,6 +3,7 @@ import 'package:orama_admin/others/sabores.dart';
 import 'package:orama_admin/routes/routes.dart';
 import 'package:orama_admin/stores/comanda_store.dart';
 import 'package:orama_admin/utils/scroll_hide_fab.dart';
+import 'package:orama_admin/widgets/sabor_tile_admin.dart';
 import 'package:orama_admin/widgets/sabor_tile_edit.dart';
 import 'package:provider/provider.dart';
 import 'package:uuid/uuid.dart';

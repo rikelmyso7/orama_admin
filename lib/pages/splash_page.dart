@@ -1,6 +1,7 @@
 import 'dart:async';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'package:orama_admin/pages/admin_page.dart';
+import 'package:orama_admin/routes/routes.dart';
 
 class SplashScreen extends StatefulWidget {
   @override
@@ -25,24 +26,26 @@ class _SplashScreenState extends State<SplashScreen>
       parent: _controller,
       curve: Curves.easeIn,
     );
-
     _controller.forward();
-
-    _startUpdateCheck();
+    _startAnimaton();
   }
 
-  Future<void> _startUpdateCheck() async {
-    //bool shouldNavigate = await checkUpdates.checkForUpdate(context);
-    //if (shouldNavigate) {
-    Timer(Duration(seconds: 5), _navigateToHome);
-    
+  Future<void> _checkLoginStatus() async {
+    // Simula um tempo de carregamento (ex: carregando recursos iniciais)
+
+    // Verifica se o usuário está logado
+    User? user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      // Usuário está logado, redireciona para a página inicial
+      Navigator.of(context).pushReplacementNamed(RouteName.admin_page);
+    } else {
+      // Usuário não está logado, redireciona para a tela de login
+      Navigator.of(context).pushReplacementNamed(RouteName.login);
+    }
   }
 
-  void _navigateToHome() {
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(builder: (context) => AdminPage()),
-    );
+  Future<void> _startAnimaton() async {
+    Timer(Duration(seconds: 5), _checkLoginStatus);
   }
 
   @override
@@ -58,9 +61,9 @@ class _SplashScreenState extends State<SplashScreen>
           child: FadeTransition(
               opacity: _animation,
               child: Container(
-                  height: double.infinity,
-                  width: double.infinity,
-                  color: Color(0xff006764),
+                height: double.infinity,
+                width: double.infinity,
+                color: Color(0xff006764),
                 child: Center(
                   child: Image.asset(
                     'lib/images/splash_page.png',
