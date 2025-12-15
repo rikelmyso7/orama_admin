@@ -273,7 +273,10 @@ class _ComandaCardState extends State<ComandaCard> {
 
         final isMassa = categoria.key == 'Massas';
         final isManteiga = saborEntry.key == 'Manteiga';
-        final unidade = isManteiga ? 'Pote' : (isMassa ? 'Tubos' : 'Cubas');
+        final isBolacha = categoria.key == 'Bolachas';
+        final unidade = isManteiga
+            ? 'Pote'
+            : (isMassa ? 'Tubos' : (isBolacha ? 'Pacotes' : 'Cubas'));
         final saborNome = isManteiga
             ? "Manteiga"
             : (isMassa ? "Massa de ${saborEntry.key}" : saborEntry.key);
@@ -307,11 +310,22 @@ class _ComandaCardState extends State<ComandaCard> {
             ...opcoesValidas.map((quantidadeEntry) {
               final itemKey =
                   '${categoria.key}-${saborEntry.key}-${quantidadeEntry.key}';
-              final itemText = isManteiga
-                  ? "- ${quantidadeEntry.key} $unidade"
-                  : isMassa
-                      ? "- ${quantidadeEntry.key} $unidade"
-                      : "- ${quantidadeEntry.value} $unidade ${quantidadeEntry.key}";
+
+              String itemText;
+              if (isManteiga) {
+                itemText = "- ${quantidadeEntry.key} $unidade";
+              } else if (isMassa) {
+                itemText = "- ${quantidadeEntry.key} $unidade";
+              } else if (isBolacha) {
+                final quantidade = int.tryParse(quantidadeEntry.key) ?? 1;
+                final unidadePlural = quantidade > 1 ? 'Pacotes' : 'Pacote';
+                itemText = "- ${quantidadeEntry.key} $unidadePlural";
+              } else {
+                final unidadePlural =
+                    quantidadeEntry.value > 1 ? 'Cubas' : 'Cuba';
+                itemText =
+                    "- ${quantidadeEntry.value} $unidadePlural ${quantidadeEntry.key}";
+              }
 
               // Verifica se o texto do item contém "Reposição"
               final isReposicao = itemText.contains("Reposição");

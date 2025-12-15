@@ -90,9 +90,6 @@ class _RelatoriosSorvetePageState extends State<RelatoriosSorvetePage>
           .doc(comandaId)
           .delete();
       setState(() {});
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Comanda excluída com sucesso')),
-      );
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Erro ao excluir a comanda')),
@@ -220,17 +217,30 @@ class _RelatoriosSorvetePageState extends State<RelatoriosSorvetePage>
                       final comandas = snapshot.data
                               ?.expand((querySnapshot) => querySnapshot.docs)
                               .where((doc) {
-                                final comandaDate = DateTime.parse(doc['data']);
-                                final comandaName = doc['name']
-                                    as String; // Obtenha o campo name
-                                final isInicio = comandaName
-                                    .contains("(INICIO)"); // Verifica a aba
+                                // 1. converte o snapshot para Map
+                                final data = doc.data() as Map<String, dynamic>;
+
+                                // 2. data pode ser Timestamp ou String ISO
+                                final DateTime comandaDate =
+                                    data['data'] is Timestamp
+                                        ? (data['data'] as Timestamp).toDate()
+                                        : DateTime.parse(data['data']);
+
+                                // 3. pega campos de forma segura
+                                final String comandaName =
+                                    (data['name'] ?? '') as String;
+                                final String comandaPeriodo =
+                                    (data['periodo'] ?? '') as String;
+
+                                final bool isInicio =
+                                    comandaName.contains("INICIO") ||
+                                        comandaPeriodo == "INICIO";
+
                                 return comandaDate.year == _selectedDate.year &&
                                     comandaDate.month == _selectedDate.month &&
                                     comandaDate.day == _selectedDate.day &&
                                     ((selectedTab == "INICIO" && isInicio) ||
-                                        (selectedTab == "FINAL" &&
-                                            !isInicio)); // Filtra pela aba selecionada
+                                        (selectedTab == "FINAL" && !isInicio));
                               })
                               .map((doc) => Comanda.fromJson(
                                   doc.data() as Map<String, dynamic>))

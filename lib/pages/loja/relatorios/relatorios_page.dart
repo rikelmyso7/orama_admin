@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_mobx/flutter_mobx.dart';
 import 'package:intl/intl.dart';
+import 'package:orama_admin/main.dart';
 import 'package:orama_admin/pages/loja/relatorios/Dataespecificoview.dart';
 import 'package:provider/provider.dart';
 import 'package:orama_admin/routes/routes.dart';
@@ -20,93 +20,59 @@ class _RelatoriosPageState extends State<RelatoriosPage>
     with TickerProviderStateMixin {
   late TabController _tabController;
   List<String> stores = [];
-  Map<String, List<Map<String, dynamic>>> storeReports = {};
-  Map<String, List<Map<String, dynamic>>> allReportsByStore = {};
+  Map<String, List<Map<String, dynamic>>> reportsByStore = {}; // Cache de relatórios por loja
+  Map<String, bool> loadingByStore = {}; // Estado de loading por loja
   bool isLoading = true;
-  bool isLoadingReports = false;
   String? selectedStore;
   DateTime selectedDate = DateTime.now();
 
   @override
   void initState() {
     super.initState();
-    _loadStoresAndReports();
+    _loadStores();
   }
 
-  Future<void> _loadStoresAndReports() async {
+  /// Carrega apenas as lojas da coleção configuracoes_loja
+  Future<void> _loadStores() async {
     setState(() {
       isLoading = true;
     });
 
     try {
-      final store = Provider.of<StockStore>(context, listen: false);
+      final firestore = secondaryFirestore;
+      final snapshot = await firestore.collection('configuracoes_loja').get();
 
-      // Carrega lista de lojas
-      await _loadStores(store);
-
-      if (stores.isNotEmpty) {
-        _setupTabController();
-        // Carrega todos os relatórios
-        await _loadAllReports(store);
-      }
-    } catch (e) {
-      print("Erro ao carregar dados: $e");
-      // Tenta carregar do cache em caso de erro
-      await _loadStoresFromCache();
-      if (stores.isNotEmpty) {
-        _setupTabController();
-        final store = Provider.of<StockStore>(context, listen: false);
-        await _loadReportsFromCache(store);
-      }
-    } finally {
-      setState(() {
-        isLoading = false;
-      });
-    }
-  }
-
-  Future<void> _loadStores(StockStore store) async {
-    try {
-      // Aqui você deve implementar a chamada para buscar as lojas do Firebase
-      // Por exemplo: await store.fetchStores();
-      // Para este exemplo, vou simular uma lista de lojas
-      List<String> fetchedStores = await _fetchStoresFromFirebase(store);
+      final fetchedStores = snapshot.docs.map((doc) => doc.id).toList()..sort();
 
       // Salva no cache
       await _saveStoresToCache(fetchedStores);
 
       setState(() {
         stores = fetchedStores;
+        // Inicializa estado de loading para cada loja
+        for (var store in fetchedStores) {
+          loadingByStore[store] = false;
+        }
       });
-    } catch (e) {
-      print("Erro ao carregar lojas do Firebase: $e");
-      throw e;
-    }
-  }
 
-  Future<List<String>> _fetchStoresFromFirebase(StockStore store) async {
-    // Simula busca do Firebase - substitua pela implementação real
-    // return await store.fetchStores();
-
-    // Por enquanto, retorna uma lista simulada baseada nos relatórios existentes
-    await store.fetchReportsUser('Db4XIYcNMhUgYXvF6JDJJxbc3h82');
-
-    final allReports = [
-      ...store.reports.where(
-          (report) => report['UsuarioId'] != 'Db4XIYcNMhUgYXvF6JDJJxbc3h82'),
-      ...store.specificReports.where(
-          (report) => report['UsuarioId'] != 'Db4XIYcNMhUgYXvF6JDJJxbc3h82'),
-    ];
-
-    Set<String> uniqueStores = {};
-    for (var report in allReports) {
-      final storeName = report['Loja'];
-      if (storeName != null && storeName.isNotEmpty) {
-        uniqueStores.add(storeName);
+      if (stores.isNotEmpty) {
+        _setupTabController();
+        // Carrega relatórios apenas da primeira loja
+        _loadReportsForStore(stores[0]);
       }
+    } catch (e) {
+      print("Erro ao carregar lojas: $e");
+      // Tenta carregar do cache em caso de erro
+      await _loadStoresFromCache();
+      if (stores.isNotEmpty) {
+        _setupTabController();
+        _loadReportsForStore(stores[0]);
+      }
+    } finally {
+      setState(() {
+        isLoading = false;
+      });
     }
-
-    return uniqueStores.toList()..sort();
   }
 
   Future<void> _saveStoresToCache(List<String> storesList) async {
@@ -129,6 +95,9 @@ class _RelatoriosPageState extends State<RelatoriosPage>
         final cachedStores = List<String>.from(json.decode(cachedStoresJson));
         setState(() {
           stores = cachedStores;
+          for (var store in cachedStores) {
+            loadingByStore[store] = false;
+          }
         });
         print("Lojas carregadas do cache local: ${stores.length} lojas");
       } else {
@@ -154,134 +123,111 @@ class _RelatoriosPageState extends State<RelatoriosPage>
       }
     });
 
-    // Carrega relatórios da primeira loja
     if (stores.isNotEmpty) {
-      _loadReportsForStore(stores[0]);
+      selectedStore = stores[0];
     }
   }
 
-  Future<void> _loadAllReports(StockStore store) async {
-    try {
-      await store.fetchReportsUser('Db4XIYcNMhUgYXvF6JDJJxbc3h82');
-
-      final allReports = [
-        ...store.reports.where(
-            (report) => report['UsuarioId'] != 'Db4XIYcNMhUgYXvF6JDJJxbc3h82'),
-        ...store.specificReports.where(
-            (report) => report['UsuarioId'] != 'Db4XIYcNMhUgYXvF6JDJJxbc3h82'),
-      ];
-
-      _groupReportsByStore(allReports);
-
-      // Salva relatórios no cache
-      await _saveReportsToCache(allReports);
-    } catch (e) {
-      print("Erro ao carregar relatórios online: $e");
-      throw e;
-    }
-  }
-
-  Future<void> _loadReportsFromCache(StockStore store) async {
-    try {
-      final cachedReports =
-          store.loadCachedReports('Db4XIYcNMhUgYXvF6JDJJxbc3h82');
-      if (cachedReports.isNotEmpty) {
-        _groupReportsByStore(cachedReports);
-        print("Relatórios carregados do cache local.");
-      } else {
-        print("Nenhum relatório no cache local.");
-      }
-    } catch (e) {
-      print("Erro ao carregar relatórios do cache local: $e");
-    }
-  }
-
-  Future<void> _saveReportsToCache(List<Map<String, dynamic>> reports) async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString('cached_reports', json.encode(reports));
-      await prefs.setInt(
-          'reports_cache_timestamp', DateTime.now().millisecondsSinceEpoch);
-    } catch (e) {
-      print("Erro ao salvar relatórios no cache: $e");
-    }
-  }
-
-  void _groupReportsByStore(List<Map<String, dynamic>> reports) {
-    allReportsByStore = {};
-    for (var report in reports) {
-      final storeName = report['Loja'];
-      if (storeName != null && storeName.isNotEmpty) {
-        if (!allReportsByStore.containsKey(storeName)) {
-          allReportsByStore[storeName] = [];
-        }
-        allReportsByStore[storeName]!.add(report);
-      }
-    }
-
-    // Ordena relatórios por data (mais recentes primeiro)
-    final dateFormat = DateFormat('dd/MM/yyyy HH:mm');
-    allReportsByStore.forEach((storeName, reports) {
-      reports.sort((a, b) {
-        try {
-          final dateA = dateFormat.parse(a['Data'] ?? '');
-          final dateB = dateFormat.parse(b['Data'] ?? '');
-          return dateB.compareTo(dateA);
-        } catch (e) {
-          return 0;
-        }
-      });
-    });
-  }
-
-  void _loadReportsForStore(String storeName) {
+  /// Carrega relatórios apenas da loja selecionada (lazy loading)
+  Future<void> _loadReportsForStore(String storeName) async {
     setState(() {
-      isLoadingReports = true;
       selectedStore = storeName;
+      loadingByStore[storeName] = true;
     });
 
-    // Simula um pequeno delay para mostrar o loading
-    Future.delayed(Duration(milliseconds: 300), () {
-      final allStoreReports = allReportsByStore[storeName] ?? [];
+    // Se já tem cache dessa loja, não precisa recarregar
+    if (reportsByStore.containsKey(storeName)) {
+      setState(() {
+        loadingByStore[storeName] = false;
+      });
+      return;
+    }
 
-      // Filtra relatórios por data selecionada
-      final dateFormat = DateFormat('dd/MM/yyyy HH:mm');
-      final filteredReports = allStoreReports.where((report) {
-        final dateStr = report['Data'];
-        if (dateStr == null) return false;
-        try {
-          final reportDate = dateFormat.parse(dateStr, true).toLocal();
-          return reportDate.year == selectedDate.year &&
-              reportDate.month == selectedDate.month &&
-              reportDate.day == selectedDate.day;
-        } catch (e) {
-          return false;
+    try {
+      final firestore = secondaryFirestore;
+      final List<Map<String, dynamic>> storeReports = [];
+
+      // Busca relatórios de todos os usuários, filtrando por loja
+      final usuariosSnapshot = await firestore.collection('users').get();
+
+      for (var userDoc in usuariosSnapshot.docs) {
+        // Pula o usuário específico
+        if (userDoc.id == 'Db4XIYcNMhUgYXvF6JDJJxbc3h82') continue;
+
+        // Busca relatórios normais da loja
+        final relatoriosSnapshot = await userDoc.reference
+            .collection('relatorio')
+            .where('Loja', isEqualTo: storeName)
+            .get();
+
+        for (var doc in relatoriosSnapshot.docs) {
+          storeReports.add({
+            ...doc.data(),
+            'ID': doc.id,
+            'UsuarioId': userDoc.id,
+          });
         }
-      }).toList();
+
+        // Busca relatórios específicos da loja
+        final relatoriosEspecificosSnapshot = await userDoc.reference
+            .collection('relatorio_especifico')
+            .where('Loja', isEqualTo: storeName)
+            .get();
+
+        for (var doc in relatoriosEspecificosSnapshot.docs) {
+          storeReports.add({
+            ...doc.data(),
+            'ID': doc.id,
+            'UsuarioId': userDoc.id,
+          });
+        }
+      }
+
+      // Ordena por data (mais recentes primeiro)
+      _sortReportsByDate(storeReports);
 
       setState(() {
-        storeReports = {storeName: filteredReports};
-        isLoadingReports = false;
+        reportsByStore[storeName] = storeReports;
+        loadingByStore[storeName] = false;
       });
+    } catch (e) {
+      print("Erro ao carregar relatórios de $storeName: $e");
+      setState(() {
+        reportsByStore[storeName] = [];
+        loadingByStore[storeName] = false;
+      });
+    }
+  }
+
+  void _sortReportsByDate(List<Map<String, dynamic>> reports) {
+    final dateFormat = DateFormat('dd/MM/yyyy HH:mm');
+    reports.sort((a, b) {
+      try {
+        final dateA = dateFormat.parse(a['Data'] ?? '');
+        final dateB = dateFormat.parse(b['Data'] ?? '');
+        return dateB.compareTo(dateA);
+      } catch (e) {
+        return 0;
+      }
     });
+  }
+
+  /// Força recarregar os relatórios da loja (limpa o cache)
+  Future<void> _reloadReportsForStore(String storeName) async {
+    reportsByStore.remove(storeName);
+    await _loadReportsForStore(storeName);
   }
 
   void goToPreviousDay() {
     setState(() {
       selectedDate = selectedDate.subtract(Duration(days: 1));
     });
-    if (selectedStore != null) {
-      _loadReportsForStore(selectedStore!);
-    }
   }
 
   void goToNextDay() {
     setState(() {
       selectedDate = selectedDate.add(Duration(days: 1));
     });
-    if (selectedStore != null) {
-      _loadReportsForStore(selectedStore!);
-    }
   }
 
   String getFormattedDate(DateTime date) {
@@ -289,7 +235,16 @@ class _RelatoriosPageState extends State<RelatoriosPage>
   }
 
   Future<void> _refreshData() async {
-    await _loadStoresAndReports();
+    // Limpa cache e recarrega a loja atual
+    if (selectedStore != null) {
+      await _reloadReportsForStore(selectedStore!);
+    }
+  }
+
+  Future<void> _refreshAllData() async {
+    // Limpa todos os caches e recarrega tudo
+    reportsByStore.clear();
+    await _loadStores();
   }
 
   @override
@@ -451,7 +406,9 @@ class _RelatoriosPageState extends State<RelatoriosPage>
   }
 
   Widget _buildStoreReportsView(String storeName) {
-    if (isLoadingReports && selectedStore == storeName) {
+    final isLoadingThis = loadingByStore[storeName] ?? false;
+
+    if (isLoadingThis) {
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -465,7 +422,7 @@ class _RelatoriosPageState extends State<RelatoriosPage>
       );
     }
 
-    final reports = allReportsByStore[storeName] ?? [];
+    final reports = reportsByStore[storeName] ?? [];
 
     // Filtra relatórios por data selecionada
     final dateFormat = DateFormat('dd/MM/yyyy HH:mm');
@@ -504,16 +461,14 @@ class _RelatoriosPageState extends State<RelatoriosPage>
       );
     }
 
-    return Observer(builder: (_) {
-      return ListView.builder(
-        padding: EdgeInsets.all(8),
-        itemCount: filteredReports.length,
-        itemBuilder: (context, index) {
-          final report = filteredReports[index];
-          return _buildReportCard(report);
-        },
-      );
-    });
+    return ListView.builder(
+      padding: EdgeInsets.all(8),
+      itemCount: filteredReports.length,
+      itemBuilder: (context, index) {
+        final report = filteredReports[index];
+        return _buildReportCard(report);
+      },
+    );
   }
 
   Widget _buildReportCard(Map<String, dynamic> report) {

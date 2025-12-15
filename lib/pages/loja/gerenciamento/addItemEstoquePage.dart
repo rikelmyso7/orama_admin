@@ -5,6 +5,8 @@ import 'package:orama_admin/main.dart';
 import 'package:orama_admin/others/constants.dart';
 import 'package:orama_admin/pages/loja/gerenciamento/removerItemEstoquePage.dart';
 import 'package:orama_admin/utils/show_snackbar.dart';
+import 'package:orama_admin/stores/stock_store.dart';
+import 'package:provider/provider.dart';
 
 class AddItemEstoquePage extends StatefulWidget {
   const AddItemEstoquePage({super.key});
@@ -22,17 +24,45 @@ class _AddItemEstoquePageState extends State<AddItemEstoquePage> {
   List<String> categorias = [];
   String? categoriaSelecionada;
   bool isLoading = false;
+  bool isLoadingLojas = true;
+
   bool algumaLojaSelecionada() {
     return locaisSelecionados.values.any((selecionado) => selecionado);
   }
 
-  Map<String, bool> locaisSelecionados = {
-    'Orama Itupeva': false,
-    'Orama Paineiras': false,
-    'Orama Retiro': false,
-    'Platz': false,
-    'Repo Fabrica': false,
-  };
+  Map<String, bool> locaisSelecionados = {};
+
+  Future<void> varrerItensComEspacoFinal({bool corrigir = false}) async {
+    final fs = secondaryFirestore; // usa a instância já usada no app
+
+    final lojas = await fs.collection('configuracoes_loja').get();
+    for (final lojaDoc in lojas.docs) {
+      final insumosRaw =
+          Map<String, dynamic>.from(lojaDoc.data()['insumos'] ?? {});
+      final insumosNovo = <String, List<Map<String, dynamic>>>{};
+      var precisaAtualizar = false;
+
+      insumosRaw.forEach((categoria, lista) {
+        final novaLista = <Map<String, dynamic>>[];
+        for (final item in List<Map<String, dynamic>>.from(lista)) {
+          final nome = (item['nome'] ?? '') as String;
+          if (nome.endsWith(' ')) {
+            precisaAtualizar = true;
+            novaLista.add({...item, 'nome': nome.trimRight()});
+            debugPrint('Corrigir ${lojaDoc.id}/$categoria → "$nome"');
+          } else {
+            novaLista.add(item);
+          }
+        }
+        insumosNovo[categoria] = novaLista;
+      });
+
+      if (precisaAtualizar && corrigir) {
+        await lojaDoc.reference.update({'insumos': insumosNovo});
+        debugPrint('Atualizado: ${lojaDoc.id}');
+      }
+    }
+  }
 
   Future<void> adicionarItemEmInsumosDeLojas(List<String> lojas) async {
     final firestore = secondaryFirestore;
@@ -46,9 +76,6 @@ class _AddItemEstoquePageState extends State<AddItemEstoquePage> {
 
     try {
       for (String loja in lojas) {
-        print('Categoria: $categoriaSelecionada');
-        print('Item: $novoItem');
-        print('Destino: $lojas');
 
         final path = categoriaSelecionada;
 
@@ -89,8 +116,105 @@ class _AddItemEstoquePageState extends State<AddItemEstoquePage> {
   @override
   void initState() {
     super.initState();
-    categorias = categoriasPadrao;
     tipoController.text = '';
+    _loadLojas();
+    _loadCategorias();
+  }
+
+  Future<void> _loadLojas() async {
+    try {
+      final firestore = secondaryFirestore;
+      final snapshot = await firestore.collection('configuracoes_loja').get();
+
+      setState(() {
+        locaisSelecionados = {
+          for (var doc in snapshot.docs) doc.id: false
+        };
+        isLoadingLojas = false;
+      });
+    } catch (e) {
+      debugPrint('Erro ao carregar lojas: $e');
+      setState(() {
+        isLoadingLojas = false;
+      });
+    }
+  }
+
+  Future<void> _loadCategorias() async {
+    // Carrega categorias da Repo Fabrica
+    final stockStore = Provider.of<StockStore>(context, listen: false);
+    await stockStore.fetchCategorias();
+
+    setState(() {
+      categorias = stockStore.categorias.toList();
+    });
+  }
+
+  Future<void> _showAddCategoriaDialog() async {
+    final lojasSelecionadas = locaisSelecionados.entries
+        .where((entry) => entry.value)
+        .map((entry) => entry.key)
+        .toList();
+
+    // Não precisa mais verificar lojas selecionadas, pois as categorias são globais
+
+    final TextEditingController novaCategoriaController = TextEditingController();
+
+    return showDialog<void>(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Text('Adicionar Nova Categoria'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text('Categoria será adicionada ao sistema global'),
+              SizedBox(height: 16),
+              TextField(
+                controller: novaCategoriaController,
+                decoration: InputDecoration(
+                  labelText: 'Nome da Categoria',
+                  hintText: 'Ex: NOVOS PRODUTOS',
+                ),
+                textCapitalization: TextCapitalization.characters,
+              ),
+            ],
+          ),
+          actions: <Widget>[
+            TextButton(
+              child: Text('Cancelar'),
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+            ),
+            TextButton(
+              child: Text('Adicionar'),
+              onPressed: () async {
+                final novaCategoria = novaCategoriaController.text.trim().toUpperCase();
+                if (novaCategoria.isNotEmpty) {
+                  try {
+                    final stockStore = Provider.of<StockStore>(context, listen: false);
+
+                    // Adiciona a categoria na Repo Fabrica
+                    await stockStore.addCategoria(novaCategoria);
+
+                    await _loadCategorias();
+                    setState(() {
+                      categoriaSelecionada = novaCategoria;
+                    });
+                    Navigator.of(context).pop();
+                    ShowSnackBar(context, 'Categoria "$novaCategoria" adicionada com sucesso!',
+                        const Color(0xff60C03D));
+                  } catch (e) {
+                    ShowSnackBar(context, 'Erro ao adicionar categoria: $e', Colors.red);
+                  }
+                }
+              },
+            ),
+          ],
+        );
+      },
+    );
   }
 
   @override
@@ -110,40 +234,51 @@ class _AddItemEstoquePageState extends State<AddItemEstoquePage> {
           key: _formKey,
           child: ListView(
             children: [
-              DropdownButtonFormField<String>(
-                decoration: InputDecoration(labelText: 'Categoria'),
-                value: categoriaSelecionada,
-                items: categorias
-                    .map((categoria) => DropdownMenuItem(
-                          value: categoria,
-                          child: Text(categoria),
-                        ))
-                    .toList(),
-                onChanged: (value) {
-                  setState(() {
-                    categoriaSelecionada = value;
+              Row(
+                children: [
+                  Expanded(
+                    child: DropdownButtonFormField<String>(
+                      decoration: InputDecoration(labelText: 'Categoria'),
+                      value: categoriaSelecionada,
+                      items: categorias
+                          .map((categoria) => DropdownMenuItem(
+                                value: categoria,
+                                child: Text(categoria),
+                              ))
+                          .toList(),
+                      onChanged: (value) {
+                        setState(() {
+                          categoriaSelecionada = value;
 
-                    switch (value) {
-                      case "BALDES":
-                        minimoController.text = "2/4";
-                        tipoController.text = "Balde";
-                        break;
-                      case "POTES":
-                        minimoController.text = "";
-                        tipoController.text = "Pote";
-                        break;
-                      default:
-                        minimoController.clear();
-                        tipoController.clear();
-                    }
-                  });
-                },
-                validator: (value) => value == null || value.isEmpty
-                    ? 'Selecione uma categoria'
-                    : null,
+                          switch (value) {
+                            case "BALDES":
+                              minimoController.text = "2/4";
+                              tipoController.text = "Balde";
+                              break;
+                            case "POTES":
+                              minimoController.text = "";
+                              tipoController.text = "Pote";
+                              break;
+                            default:
+                              minimoController.clear();
+                              tipoController.clear();
+                          }
+                        });
+                      },
+                      validator: (value) => value == null || value.isEmpty
+                          ? 'Selecione uma categoria'
+                          : null,
+                    ),
+                  ),
+                  IconButton(
+                    icon: Icon(Icons.add),
+                    onPressed: _showAddCategoriaDialog,
+                    tooltip: 'Adicionar nova categoria',
+                  ),
+                ],
               ),
               DropdownButtonFormField<String>(
-                decoration: InputDecoration(labelText: 'Tipo'),
+                decoration: const InputDecoration(labelText: 'Tipo'),
                 value:
                     tipoController.text.isNotEmpty ? tipoController.text : null,
                 items: tiposPadrao
@@ -172,22 +307,38 @@ class _AddItemEstoquePageState extends State<AddItemEstoquePage> {
               TextFormField(
                 controller: nomeController,
                 decoration: InputDecoration(labelText: 'Nome do insumo'),
-                validator: (value) => value!.isEmpty ? 'Informe o nome' : null,
+                validator: (value) {
+                  if (value == null || value.trim().isEmpty)
+                    return 'Informe o nome';
+                  if (value.endsWith(' ')) return 'Não deixe espaço no final';
+                  return null;
+                },
               ),
               SizedBox(height: 24),
               Text('Adicionar em:',
                   style: TextStyle(fontWeight: FontWeight.bold)),
-              ...locaisSelecionados.keys.map((lojaId) {
-                return CheckboxListTile(
-                  title: Text(lojaId),
-                  value: locaisSelecionados[lojaId],
-                  onChanged: (bool? value) {
-                    setState(() {
-                      locaisSelecionados[lojaId] = value ?? false;
-                    });
-                  },
-                );
-              }).toList(),
+              if (isLoadingLojas)
+                Padding(
+                  padding: EdgeInsets.all(16),
+                  child: Center(child: CircularProgressIndicator()),
+                )
+              else if (locaisSelecionados.isEmpty)
+                Padding(
+                  padding: EdgeInsets.all(16),
+                  child: Text('Nenhuma loja encontrada'),
+                )
+              else
+                ...locaisSelecionados.keys.map((lojaId) {
+                  return CheckboxListTile(
+                    title: Text(lojaId),
+                    value: locaisSelecionados[lojaId],
+                    onChanged: (bool? value) {
+                      setState(() {
+                        locaisSelecionados[lojaId] = value ?? false;
+                      });
+                    },
+                  );
+                }).toList(),
               SizedBox(height: 24),
               ElevatedButton.icon(
                 onPressed:
@@ -215,7 +366,7 @@ class _AddItemEstoquePageState extends State<AddItemEstoquePage> {
                   'Remover Item do Estoque',
                   style: TextStyle(color: Colors.white),
                 ),
-                onPressed: () => Navigator.push(
+                onPressed: () async => Navigator.push(
                   context,
                   MaterialPageRoute(builder: (_) => RemoveItemEstoquePage()),
                 ),

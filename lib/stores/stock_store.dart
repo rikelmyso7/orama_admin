@@ -39,6 +39,9 @@ abstract class _StockStore with Store {
   ObservableList<Map<String, dynamic>> reports =
       ObservableList<Map<String, dynamic>>();
 
+  @observable
+  ObservableList<String> categorias = ObservableList<String>();
+
 // Relatórios específicos
   ObservableList<Map<String, dynamic>> specificReports =
       ObservableList<Map<String, dynamic>>();
@@ -1467,5 +1470,123 @@ abstract class _StockStore with Store {
         pesoValuesRepo[key] = peso;
       }
     });
+  }
+
+  // Método para buscar categorias do Firebase (sempre da Repo Fabrica)
+  @action
+  Future<void> fetchCategorias() async {
+    categorias.clear();
+    const String repoFabrica = 'Repo Fabrica';
+
+    try {
+      final docSnapshot = await firestore
+          .collection('configuracoes_loja')
+          .doc(repoFabrica)
+          .get();
+
+      if (docSnapshot.exists) {
+        final data = docSnapshot.data();
+        final categoriasData = data?['categorias'] as List<dynamic>? ?? [];
+
+        final loadedCategorias = categoriasData
+            .map((categoria) => categoria.toString())
+            .toList();
+
+        // Salva localmente para acesso offline
+        await box.write('localCategorias', loadedCategorias);
+
+        categorias.addAll(loadedCategorias);
+        print("Categorias carregadas do Firebase da Repo Fabrica: $loadedCategorias");
+      } else {
+        print("Documento da Repo Fabrica não encontrado.");
+        _loadFallbackCategorias();
+      }
+    } catch (e) {
+      print("Erro ao buscar categorias da Repo Fabrica. Carregando categorias offline...");
+      _loadFallbackCategorias();
+    }
+  }
+
+  void _loadFallbackCategorias() {
+    final offlineCategorias = box.read<List>('localCategorias') ?? [];
+    if (offlineCategorias.isNotEmpty) {
+      categorias.addAll(offlineCategorias.cast<String>());
+    } else {
+      // Fallback para categorias padrão se não houver cache
+      categorias.addAll([
+        'BALDES', 'POTES', 'COOKIES', 'PÃO DE QUEIJO', 'SECOS',
+        'TOPPINGS', 'PERECÍVEIS', 'POLPAS', 'INSUMOS', 'DECORAÇÃO',
+        'BEBIDAS', 'DESCARTÁVEIS', 'LIMPEZA', 'UNIFORMES',
+        'UTENSÍLIOS', 'PAPELARIA', 'SALGADOS'
+      ]);
+    }
+  }
+
+  // Método para adicionar nova categoria no Firebase (sempre na Repo Fabrica)
+  @action
+  Future<void> addCategoria(String nomeCategoria) async {
+    const String repoFabrica = 'Repo Fabrica';
+
+    try {
+      final docRef = firestore.collection('configuracoes_loja').doc(repoFabrica);
+
+      // Busca as categorias atuais
+      final docSnapshot = await docRef.get();
+      List<dynamic> categoriasAtuais = [];
+
+      if (docSnapshot.exists) {
+        final data = docSnapshot.data();
+        categoriasAtuais = data?['categorias'] as List<dynamic>? ?? [];
+      }
+
+      // Adiciona a nova categoria se não existir
+      final novaCategoria = nomeCategoria.toUpperCase();
+      if (!categoriasAtuais.contains(novaCategoria)) {
+        categoriasAtuais.add(novaCategoria);
+
+        await docRef.set({
+          'categorias': categoriasAtuais,
+        }, SetOptions(merge: true));
+
+        // Atualiza a lista local
+        await fetchCategorias();
+        print("Categoria '$nomeCategoria' adicionada com sucesso na Repo Fabrica");
+      } else {
+        print("Categoria '$nomeCategoria' já existe na Repo Fabrica");
+      }
+    } catch (e) {
+      print("Erro ao adicionar categoria: $e");
+    }
+  }
+
+  // Método para remover categoria do Firebase (sempre da Repo Fabrica)
+  @action
+  Future<void> removeCategoria(String nomeCategoria) async {
+    const String repoFabrica = 'Repo Fabrica';
+
+    try {
+      final docRef = firestore.collection('configuracoes_loja').doc(repoFabrica);
+
+      // Busca as categorias atuais
+      final docSnapshot = await docRef.get();
+
+      if (docSnapshot.exists) {
+        final data = docSnapshot.data();
+        List<dynamic> categoriasAtuais = data?['categorias'] as List<dynamic>? ?? [];
+
+        // Remove a categoria
+        categoriasAtuais.remove(nomeCategoria);
+
+        await docRef.set({
+          'categorias': categoriasAtuais,
+        }, SetOptions(merge: true));
+
+        // Atualiza a lista local
+        await fetchCategorias();
+        print("Categoria '$nomeCategoria' removida com sucesso da Repo Fabrica");
+      }
+    } catch (e) {
+      print("Erro ao remover categoria: $e");
+    }
   }
 }

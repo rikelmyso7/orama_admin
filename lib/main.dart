@@ -10,7 +10,6 @@ import 'package:orama_admin/stores/comanda_store.dart';
 import 'package:orama_admin/stores/stock_store.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:provider/provider.dart';
-import 'package:google_api_availability/google_api_availability.dart';
 
 // Variáveis globais para os bancos de dados
 late FirebaseFirestore primaryFirestore;

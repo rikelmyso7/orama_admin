@@ -96,15 +96,52 @@ class UpdateService {
     }
   }
 
-  Future<void> downloadAndInstall(String url) async {
+  Future<void> downloadAndInstall(
+    String url, {
+    Function(double progress, String downloaded, String total)? onDownloadProgress,
+    Function(String status)? onStatusUpdate,
+  }) async {
     final tempPath = '${(await getTemporaryDirectory()).path}/app-release.apk';
-    debugPrint(tempPath);
-    // 1. Baixar (exibe progresso se quiser)
-    debugPrint('Baixando..');
-    await Dio().download(url, tempPath);
+    dev.log('Caminho temporário: $tempPath', name: _logName);
 
-    // 2. Chamar instalador nativo (abre diálogo)
-    debugPrint('Instalando..');
-    await AppInstaller.installApk(tempPath);
+    try {
+      // 1. Baixar com progresso
+      onStatusUpdate?.call('Iniciando download...');
+      dev.log('🔽 Iniciando download do APK...', name: _logName);
+
+      await Dio().download(
+        url,
+        tempPath,
+        onReceiveProgress: (received, total) {
+          if (total != -1) {
+            final progress = received / total;
+            final downloadedMB = (received / 1024 / 1024).toStringAsFixed(1);
+            final totalMB = (total / 1024 / 1024).toStringAsFixed(1);
+
+            onDownloadProgress?.call(progress, downloadedMB, totalMB);
+            dev.log('📈 Progresso download: ${(progress * 100).toStringAsFixed(1)}% ($downloadedMB/$totalMB MB)',
+                name: _logName);
+          }
+        },
+      );
+
+      onStatusUpdate?.call('Download concluído. Preparando instalação...');
+      dev.log('✅ Download concluído', name: _logName);
+
+      // 2. Chamar instalador nativo
+      onStatusUpdate?.call('Iniciando instalação...');
+      dev.log('📱 Iniciando instalação do APK...', name: _logName);
+
+      await AppInstaller.installApk(tempPath);
+
+      onStatusUpdate?.call('Instalação iniciada');
+      dev.log('🎉 Instalação iniciada com sucesso', name: _logName);
+
+    } catch (e, s) {
+      dev.log('❌ Erro durante download/instalação: $e',
+          name: _logName, error: e, stackTrace: s);
+      onStatusUpdate?.call('Erro: $e');
+      rethrow;
+    }
   }
 }

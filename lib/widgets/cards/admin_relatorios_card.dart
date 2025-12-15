@@ -33,7 +33,7 @@ class AdminRelatoriosCard extends StatelessWidget {
         child: ExpansionTile(
           initiallyExpanded: isExpanded,
           onExpansionChanged: onExpansionChanged,
-          title: Text('${comanda.pdv} - ${comanda.name}'),
+          title: Text('${comanda.pdv} - ${comanda.name} (${comanda.periodo})'),
           children: [
             Padding(
               padding: const EdgeInsets.all(16.0),
@@ -99,7 +99,6 @@ class AdminRelatoriosCard extends StatelessWidget {
                   icon: const Icon(Icons.delete),
                   onPressed: () {
                     _deleteComanda(context);
-                    
                   }),
             ],
           ),
@@ -179,7 +178,10 @@ class AdminRelatoriosCard extends StatelessWidget {
 
         final isMassa = categoria.key == 'Massas';
         final isManteiga = saborEntry.key == 'Manteiga';
-        final unidade = isManteiga ? 'Pote' : (isMassa ? 'Tubos' : 'Cubas');
+        final isBolacha = categoria.key == 'Bolachas';
+        final unidade = isManteiga
+            ? 'Pote'
+            : (isMassa ? 'Tubos' : (isBolacha ? 'Pacotes' : 'Cubas'));
         final saborNome = isManteiga
             ? "Manteiga"
             : (isMassa ? "Massa de ${saborEntry.key}" : saborEntry.key);
@@ -190,19 +192,28 @@ class AdminRelatoriosCard extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                saborNome,
-                style: TextStyle(fontWeight: FontWeight.bold),
+                isBolacha ? "Bolacha de ${saborEntry.key}" : saborNome,
+                style: const TextStyle(fontWeight: FontWeight.bold),
               ),
               ...opcoesValidas.map((quantidadeEntry) {
+                String textoExibicao;
+                if (isManteiga) {
+                  textoExibicao = "- ${quantidadeEntry.key} $unidade";
+                } else if (isMassa) {
+                  textoExibicao = "- ${quantidadeEntry.key} $unidade";
+                } else if (isBolacha) {
+                  final quantidade = int.tryParse(quantidadeEntry.key) ?? 1;
+                  final unidadePlural = quantidade > 1 ? 'Pacotes' : 'Pacote';
+                  textoExibicao = "- ${quantidadeEntry.key} $unidadePlural";
+                } else {
+                  final unidadePlural =
+                      quantidadeEntry.value > 1 ? 'Cubas' : 'Cuba';
+                  textoExibicao =
+                      "- ${quantidadeEntry.value} $unidadePlural ${quantidadeEntry.key}";
+                }
                 return Padding(
                   padding: const EdgeInsets.only(left: 16.0),
-                  child: Text(
-                    isManteiga
-                        ? "- ${quantidadeEntry.key} $unidade"
-                        : isMassa
-                            ? "- ${quantidadeEntry.key} $unidade"
-                            : "- ${quantidadeEntry.value} $unidade ${quantidadeEntry.key}",
-                  ),
+                  child: Text(textoExibicao),
                 );
               }).toList(),
             ],

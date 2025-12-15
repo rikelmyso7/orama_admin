@@ -1,10 +1,9 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_mobx/flutter_mobx.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
-import 'package:get_storage/get_storage.dart';
 import 'package:intl/intl.dart';
+import 'package:orama_admin/main.dart';
 import 'package:orama_admin/pages/loja/reposicao/DataReposicaoView.dart';
 import 'package:orama_admin/pages/loja/reposicao/add_reposicao_info.dart';
 import 'package:orama_admin/pages/loja/relatorios/relatorios_page.dart';
@@ -12,7 +11,6 @@ import 'package:orama_admin/pages/loja/reposicao/editar_reposicao_page.dart';
 import 'package:orama_admin/routes/routes.dart';
 import 'package:orama_admin/stores/stock_store.dart';
 import 'package:orama_admin/utils/exit_dialog_utils.dart';
-import 'package:orama_admin/utils/gerar_excel.dart';
 import 'package:orama_admin/utils/gerar_romaneio.dart';
 import 'package:orama_admin/widgets/date_picker_widget.dart';
 import 'package:orama_admin/widgets/my_styles/my_drawer.dart';
@@ -30,101 +28,59 @@ class _ReposicaoPageState extends State<ReposicaoPage>
     with TickerProviderStateMixin {
   late TabController _tabController;
   List<String> stores = [];
-  Map<String, List<Map<String, dynamic>>> storeReports = {};
-  Map<String, List<Map<String, dynamic>>> allReportsByStore = {};
+  Map<String, List<Map<String, dynamic>>> reportsByStore = {}; // Cache de reposições por loja
+  Map<String, bool> loadingByStore = {}; // Estado de loading por loja
   bool isLoading = true;
-  bool isLoadingReports = false;
   String? selectedStore;
   DateTime selectedDate = DateTime.now();
 
   @override
   void initState() {
     super.initState();
-    _loadStoresAndReports();
-    final store = Provider.of<StockStore>(context, listen: false);
-    store.fetchReports();
+    _loadStores();
   }
 
-  Future<List<String>> fetchAllowedStores() async {
-    try {
-      final snapshot =
-          await FirebaseFirestore.instance.collection('lojas').get();
-
-      List<String> storesList = [];
-      for (var doc in snapshot.docs) {
-        // Assumindo que o nome da loja está no campo 'name' ou use doc.id
-        final storeName = doc.data()['name'] ?? doc.id;
-        storesList.add(storeName);
-      }
-
-      return storesList;
-    } catch (e) {
-      print("Erro ao buscar lojas permitidas: $e");
-      throw e;
-    }
-  }
-
-  Future<void> _loadStoresAndReports() async {
+  /// Carrega apenas as lojas da coleção configuracoes_loja
+  Future<void> _loadStores() async {
     setState(() {
       isLoading = true;
     });
 
     try {
-      final store = Provider.of<StockStore>(context, listen: false);
+      final firestore = secondaryFirestore;
+      final snapshot = await firestore.collection('configuracoes_loja').get();
 
-      // Carrega lista de lojas
-      await _loadStores(store);
-
-      if (stores.isNotEmpty) {
-        _setupTabController();
-        // Carrega todos os relatórios de reposição
-        await _loadAllReports(store);
-      }
-    } catch (e) {
-      print("Erro ao carregar dados: $e");
-      // Tenta carregar do cache em caso de erro
-      await _loadStoresFromCache();
-      if (stores.isNotEmpty) {
-        _setupTabController();
-        final store = Provider.of<StockStore>(context, listen: false);
-        await _loadReportsFromCache(store);
-      }
-    } finally {
-      setState(() {
-        isLoading = false;
-      });
-    }
-  }
-
-  Future<void> _loadStores(StockStore store) async {
-    try {
-      List<String> fetchedStores = await _fetchStoresFromFirebase(store);
+      final fetchedStores = snapshot.docs.map((doc) => doc.id).toList()..sort();
 
       // Salva no cache
       await _saveStoresToCache(fetchedStores);
 
       setState(() {
         stores = fetchedStores;
+        // Inicializa estado de loading para cada loja
+        for (var store in fetchedStores) {
+          loadingByStore[store] = false;
+        }
       });
-    } catch (e) {
-      print("Erro ao carregar lojas do Firebase: $e");
-      throw e;
-    }
-  }
 
-  Future<List<String>> _fetchStoresFromFirebase(StockStore store) async {
-    // Busca os relatórios de reposição
-    await store.fetchReports();
-
-    Set<String> uniqueStores = {};
-    for (var report in store.reports) {
-      final storeName = report['Loja'];
-      if (storeName != null && storeName.isNotEmpty) {
-        uniqueStores.add(storeName);
+      if (stores.isNotEmpty) {
+        _setupTabController();
+        // Carrega reposições apenas da primeira loja
+        _loadReportsForStore(stores[0]);
       }
+    } catch (e) {
+      print("Erro ao carregar lojas: $e");
+      // Tenta carregar do cache em caso de erro
+      await _loadStoresFromCache();
+      if (stores.isNotEmpty) {
+        _setupTabController();
+        _loadReportsForStore(stores[0]);
+      }
+    } finally {
+      setState(() {
+        isLoading = false;
+      });
     }
-
-    return uniqueStores.toList()..sort();
   }
 
   Future<void> _saveStoresToCache(List<String> storesList) async {
@@ -147,6 +103,9 @@ class _ReposicaoPageState extends State<ReposicaoPage>
         final cachedStores = List<String>.from(json.decode(cachedStoresJson));
         setState(() {
           stores = cachedStores;
+          for (var store in cachedStores) {
+            loadingByStore[store] = false;
+          }
         });
         print("Lojas carregadas do cache local: ${stores.length} lojas");
       } else {
@@ -172,131 +131,93 @@ class _ReposicaoPageState extends State<ReposicaoPage>
       }
     });
 
-    // Carrega relatórios da primeira loja
     if (stores.isNotEmpty) {
-      _loadReportsForStore(stores[0]);
+      selectedStore = stores[0];
     }
   }
 
-  Future<void> _loadAllReports(StockStore store) async {
-    try {
-      await store.fetchReports();
-
-      _groupReportsByStore(store.reports);
-
-      // Salva relatórios no cache
-      await _saveReportsToCache(store.reports);
-    } catch (e) {
-      print("Erro ao carregar relatórios online: $e");
-      throw e;
-    }
-  }
-
-  Future<void> _loadReportsFromCache(StockStore store) async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final cachedReportsJson = prefs.getString('cached_reposicao_reports');
-
-      if (cachedReportsJson != null) {
-        final cachedReports = List<Map<String, dynamic>>.from(json
-            .decode(cachedReportsJson)
-            .map((x) => Map<String, dynamic>.from(x)));
-        _groupReportsByStore(cachedReports);
-        print("Relatórios de reposição carregados do cache local.");
-      } else {
-        print("Nenhum relatório de reposição no cache local.");
-      }
-    } catch (e) {
-      print("Erro ao carregar relatórios do cache local: $e");
-    }
-  }
-
-  Future<void> _saveReportsToCache(List<Map<String, dynamic>> reports) async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString('cached_reposicao_reports', json.encode(reports));
-      await prefs.setInt('reposicao_reports_cache_timestamp',
-          DateTime.now().millisecondsSinceEpoch);
-    } catch (e) {
-      print("Erro ao salvar relatórios no cache: $e");
-    }
-  }
-
-  void _groupReportsByStore(List<Map<String, dynamic>> reports) {
-    allReportsByStore = {};
-    for (var report in reports) {
-      final storeName = report['Loja'];
-      if (storeName != null && storeName.isNotEmpty) {
-        if (!allReportsByStore.containsKey(storeName)) {
-          allReportsByStore[storeName] = [];
-        }
-        allReportsByStore[storeName]!.add(report);
-      }
-    }
-
-    // Ordena relatórios por data (mais recentes primeiro)
-    final dateFormat = DateFormat('dd/MM/yyyy HH:mm');
-    allReportsByStore.forEach((storeName, reports) {
-      reports.sort((a, b) {
-        try {
-          final dateA = dateFormat.parse(a['Data'] ?? '');
-          final dateB = dateFormat.parse(b['Data'] ?? '');
-          return dateB.compareTo(dateA);
-        } catch (e) {
-          return 0;
-        }
-      });
-    });
-  }
-
-  void _loadReportsForStore(String storeName) {
+  /// Carrega reposições apenas da loja selecionada (lazy loading)
+  Future<void> _loadReportsForStore(String storeName) async {
     setState(() {
-      isLoadingReports = true;
       selectedStore = storeName;
+      loadingByStore[storeName] = true;
     });
 
-    // Simula um pequeno delay para mostrar o loading
-    Future.delayed(Duration(milliseconds: 300), () {
-      final allStoreReports = allReportsByStore[storeName] ?? [];
+    // Se já tem cache dessa loja, não precisa recarregar
+    if (reportsByStore.containsKey(storeName)) {
+      setState(() {
+        loadingByStore[storeName] = false;
+      });
+      return;
+    }
 
-      // Filtra relatórios por data selecionada
-      final dateFormat = DateFormat('dd/MM/yyyy HH:mm');
-      final filteredReports = allStoreReports.where((report) {
-        final dateStr = report['Data'];
-        if (dateStr == null) return false;
-        try {
-          final reportDate = dateFormat.parse(dateStr, true).toLocal();
-          return reportDate.year == selectedDate.year &&
-              reportDate.month == selectedDate.month &&
-              reportDate.day == selectedDate.day;
-        } catch (e) {
-          return false;
+    try {
+      final firestore = secondaryFirestore;
+      final List<Map<String, dynamic>> storeReports = [];
+
+      // Busca reposições do usuário logado, filtrando por loja
+      final user = FirebaseAuth.instance.currentUser;
+      if (user != null) {
+        final reposicoesSnapshot = await firestore
+            .collection('usuarios')
+            .doc(user.uid)
+            .collection('reposicao')
+            .where('Loja', isEqualTo: storeName)
+            .get();
+
+        for (var doc in reposicoesSnapshot.docs) {
+          storeReports.add({
+            ...doc.data(),
+            'ID': doc.id,
+          });
         }
-      }).toList();
+      }
+
+      // Ordena por data (mais recentes primeiro)
+      _sortReportsByDate(storeReports);
 
       setState(() {
-        storeReports = {storeName: filteredReports};
-        isLoadingReports = false;
+        reportsByStore[storeName] = storeReports;
+        loadingByStore[storeName] = false;
       });
+    } catch (e) {
+      print("Erro ao carregar reposições de $storeName: $e");
+      setState(() {
+        reportsByStore[storeName] = [];
+        loadingByStore[storeName] = false;
+      });
+    }
+  }
+
+  void _sortReportsByDate(List<Map<String, dynamic>> reports) {
+    final dateFormat = DateFormat('dd/MM/yyyy HH:mm');
+    reports.sort((a, b) {
+      try {
+        final dateA = dateFormat.parse(a['Data'] ?? '');
+        final dateB = dateFormat.parse(b['Data'] ?? '');
+        return dateB.compareTo(dateA);
+      } catch (e) {
+        return 0;
+      }
     });
+  }
+
+  /// Força recarregar as reposições da loja (limpa o cache)
+  Future<void> _reloadReportsForStore(String storeName) async {
+    reportsByStore.remove(storeName);
+    await _loadReportsForStore(storeName);
   }
 
   void goToPreviousDay() {
     setState(() {
       selectedDate = selectedDate.subtract(Duration(days: 1));
     });
-    if (selectedStore != null) {
-      _loadReportsForStore(selectedStore!);
-    }
   }
 
   void goToNextDay() {
     setState(() {
       selectedDate = selectedDate.add(Duration(days: 1));
     });
-    if (selectedStore != null) {
-      _loadReportsForStore(selectedStore!);
-    }
   }
 
   String getFormattedDate(DateTime date) {
@@ -304,7 +225,16 @@ class _ReposicaoPageState extends State<ReposicaoPage>
   }
 
   Future<void> _refreshData() async {
-    await _loadStoresAndReports();
+    // Limpa cache e recarrega a loja atual
+    if (selectedStore != null) {
+      await _reloadReportsForStore(selectedStore!);
+    }
+  }
+
+  Future<void> _refreshAllData() async {
+    // Limpa todos os caches e recarrega tudo
+    reportsByStore.clear();
+    await _loadStores();
   }
 
   @override
@@ -502,7 +432,9 @@ class _ReposicaoPageState extends State<ReposicaoPage>
   }
 
   Widget _buildStoreReportsView(String storeName) {
-    if (isLoadingReports && selectedStore == storeName) {
+    final isLoadingThis = loadingByStore[storeName] ?? false;
+
+    if (isLoadingThis) {
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -516,7 +448,7 @@ class _ReposicaoPageState extends State<ReposicaoPage>
       );
     }
 
-    final reports = allReportsByStore[storeName] ?? [];
+    final reports = reportsByStore[storeName] ?? [];
 
     // Filtra relatórios por data selecionada
     final dateFormat = DateFormat('dd/MM/yyyy HH:mm');

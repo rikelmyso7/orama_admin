@@ -51,16 +51,21 @@ class _AddFuncionarioPageState extends State<AddFuncionarioPage> {
           context, 'Funcionário criado com sucesso!', const Color(0xff60C03D));
       Navigator.pop(context); // fecha página
     } on FirebaseAuthException catch (e) {
-      String msg = switch (e.code) {
-        'email-already-in-use' => 'E-mail já está em uso.',
-        'invalid-email' => 'E-mail inválido.',
-        _ => 'Erro: ${e.code}',
-      };
-      ShowSnackBar(context, msg, Colors.red);
+      String message = 'Erro ao criar funcionário.';
+      if (e.code == 'email-already-in-use') {
+        message = 'Este e-mail já está em uso.';
+      } else if (e.code == 'invalid-email') {
+        message = 'E-mail inválido.';
+      } else if (e.code == 'weak-password') {
+        message = 'A senha fornecida é muito fraca.';
+      }
+      ShowSnackBar(context, message, Colors.red);
     } catch (e) {
       ShowSnackBar(context, 'Erro inesperado: $e', Colors.red);
     } finally {
-      if (mounted) setState(() => isLoading = false);
+      if (mounted) {
+        setState(() => isLoading = false);
+      }
     }
   }
   /* ------------------------------------------------------------------ */

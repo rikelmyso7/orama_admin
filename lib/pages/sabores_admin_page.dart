@@ -49,7 +49,7 @@ class _SaboresPageState extends State<SaboresAdminPage>
     final comandaStore = Provider.of<ComandaStore>(context);
     final tabViewState = Provider.of<SaborStore>(context);
     final dataFormat = DateFormat('dd-MM-yyyy HH:mm').format(DateTime.now());
-              final comandaId = '${dataFormat} - ${widget.pdv}';
+    final comandaId = '${dataFormat} - ${widget.pdv}';
 
     return Scaffold(
       appBar: AppBar(
@@ -62,7 +62,17 @@ class _SaboresPageState extends State<SaboresAdminPage>
         bottom: TabBar(
           labelColor: Colors.white,
           indicatorColor: Colors.amber,
+          indicatorWeight: 3,
           controller: _tabController,
+          isScrollable: true,
+          labelStyle: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+          ),
+          unselectedLabelStyle: TextStyle(
+            fontSize: 15,
+            fontWeight: FontWeight.normal,
+          ),
           tabs: sabores.keys.map((String key) {
             return Tab(text: key);
           }).toList(),
@@ -94,13 +104,14 @@ class _SaboresPageState extends State<SaboresAdminPage>
           ),
           onPressed: () {
             comandaStore.addOrUpdateCard(
-              
               Comanda(
                   pdv: widget.pdv,
                   sabores: tabViewState.saboresSelecionados.map((key, value) =>
                       MapEntry(key, Map<String, Map<String, int>>.from(value))),
                   data: DateTime.now(),
-                  id: comandaId, name: '', userId: ''),
+                  id: comandaId,
+                  name: '',
+                  userId: ''),
             );
             tabViewState.resetExpansionState();
             tabViewState.resetSaborTabView();

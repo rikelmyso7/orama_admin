@@ -35,11 +35,7 @@ class AdminDescartavelCard extends StatelessWidget {
           title: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(comanda.pdv),
-              Text(
-                comanda.name,
-                style: TextStyle(fontWeight: FontWeight.bold),
-              ),
+              Text('${comanda.pdv} - ${comanda.name} - (${comanda.periodo})'),
             ],
           ),
           children: [
@@ -133,106 +129,44 @@ class AdminDescartavelCard extends StatelessWidget {
   }
 
   Widget _buildDescartaveisList() {
-    final isFormatoAntigo =
-        comanda.itens.isEmpty && comanda.toJson().containsKey('quantidades');
-
-    // Criamos uma lista com os nomes válidos dos descartáveis
-    final Set<String> descartaveisValidos =
-        descartaveis.map((item) => item.name).toSet();
-
-    if (isFormatoAntigo) {
-      final quantidades =
-          List<String>.from(comanda.toJson()['quantidades'] ?? []);
-      final observacoesAntigas =
-          List<String>.from(comanda.toJson()['observacoes'] ?? []);
-
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: List.generate(quantidades.length, (index) {
-          if (index >= descartaveis.length)
-            return SizedBox(); // Evita erro de índice
-
-          final itemName = descartaveis[index].name;
-          final quantidade = quantidades[index];
-
-          // Verifica se há observação no formato antigo
-          final observacao = index < observacoesAntigas.length
-              ? observacoesAntigas[index]
-              : '';
-
-          // Verifica se o item está na lista de descartáveis válidos
-          if (!descartaveisValidos.contains(itemName)) {
-            return SizedBox(); // Ignora se não estiver na lista
-          }
-
-          return Padding(
-            padding: const EdgeInsets.symmetric(vertical: 4.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  itemName,
-                  style: const TextStyle(fontWeight: FontWeight.bold),
-                ),
-                Padding(
-                  padding: const EdgeInsets.only(left: 16.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('- Quantidade: $quantidade'),
-                      Text('- Observação: $observacao'),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          );
-        }),
-      );
-    } else {
-      if (comanda.itens.isEmpty) {
-        return Padding(
-          padding: const EdgeInsets.symmetric(vertical: 4.0),
-          child: Text("Nenhum descartável selecionado."),
-        );
-      }
-
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: comanda.itens.map((item) {
-          final itemName = item['Item'] ?? '';
-          final quantidade = item['Quantidade'];
-          final observacao = item['Observacao'] ?? '';
-
-          // Verifica se o item existe na lista de descartáveis cadastrados
-          if (!descartaveisValidos.contains(itemName)) {
-            return SizedBox(); // Ignora se não estiver na lista
-          }
-
-          return Padding(
-            padding: const EdgeInsets.symmetric(vertical: 4.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  itemName,
-                  style: const TextStyle(fontWeight: FontWeight.bold),
-                ),
-                Padding(
-                  padding: const EdgeInsets.only(left: 16.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('- Quantidade: $quantidade'),
-                      Text('- Observação: $observacao'),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          );
-        }).toList(),
+    if (comanda.itens.isEmpty) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4.0),
+        child: Text("Nenhum descartável selecionado."),
       );
     }
+
+    List<Map<String, String>> sortedItems = List.from(comanda.itens);
+    sortedItems.sort((a, b) => (a['Item'] ?? '').compareTo(b['Item'] ?? ''));
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: sortedItems.map((item) {
+        final itemName = item['Item'] ?? 'Item';
+        final quantity = item['Quantidade'] ?? '';
+        final observation = item['Observacao'] ?? '';
+
+        return Padding(
+          padding: const EdgeInsets.symmetric(vertical: 4.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                itemName,
+                style: const TextStyle(fontWeight: FontWeight.bold),
+              ),
+              Padding(
+                padding: const EdgeInsets.only(left: 15),
+                child: Text('- Quantidade: $quantity'),
+              ),
+              Padding(
+                padding: const EdgeInsets.only(left: 15),
+                child: Text('- Observação: $observation'),
+              ),
+            ],
+          ),
+        );
+      }).toList(),
+    );
   }
 }

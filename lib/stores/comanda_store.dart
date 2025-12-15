@@ -90,6 +90,7 @@ class Sabor {
 
 class Comanda {
   String name;
+  String periodo;
   String userId;
   String id;
   String pdv;
@@ -107,6 +108,7 @@ class Comanda {
     required this.userId,
     required this.sabores,
     required this.data,
+    this.periodo = '',
     this.caixaInicial = '',
     this.caixaFinal = '',
     this.pixInicial = '',
@@ -149,6 +151,7 @@ class Comanda {
       data: DateTime.parse(json['data']),
       name: json['name'] ?? '',
       userId: json['userId'] ?? '',
+      periodo: json['periodo'] ?? '',
       caixaInicial: json['caixaInicial'],
       caixaFinal: json['caixaFinal'],
       pixInicial: json['pixInicial'],
@@ -163,6 +166,7 @@ class Comanda {
       'sabores': _filterSabores(sabores),
       'data': data.toIso8601String(),
       'name': name,
+      'periodo': periodo,
       'userId': userId,
       'caixaInicial': caixaInicial,
       'caixaFinal': caixaFinal,
@@ -441,6 +445,7 @@ abstract class _ComandaStoreBase with Store {
 class ComandaDescartaveis {
   String name;
   String id;
+  String periodo;
   String pdv;
   String userId;
   List<Map<String, String>> itens;
@@ -455,6 +460,7 @@ class ComandaDescartaveis {
     required this.itens,
     required this.observacoes,
     required this.data,
+    this.periodo = '',
   });
 
   // Formata as informações para exibição
@@ -497,6 +503,7 @@ class ComandaDescartaveis {
         name: json['name'] ?? '',
         id: json['id'] ?? '',
         pdv: json['pdv'] ?? '',
+        periodo: json['periodo'] ?? '',
         userId: json['userId'] ?? '',
         itens: itensAntigos,
         observacoes: List<String>.from(json['observacoes'] ?? []),
@@ -507,6 +514,7 @@ class ComandaDescartaveis {
     return ComandaDescartaveis(
       name: json['name'] ?? '',
       id: json['id'] ?? '',
+      periodo: json['periodo'] ?? '',
       pdv: json['pdv'] ?? '',
       userId: json['userId'] ?? '',
       itens: itens,
@@ -520,6 +528,7 @@ class ComandaDescartaveis {
       'name': name,
       'id': id,
       'pdv': pdv,
+      'periodo': periodo,
       'userId': userId,
       'itens': itens,
       'observacoes': observacoes,

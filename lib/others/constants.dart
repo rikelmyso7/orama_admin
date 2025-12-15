@@ -3,7 +3,7 @@ final List<String> pdvs = [
   'Bar da Cachoeira',
   'Michelleto',
   'Travitália',
-  'Da Roça',
+  'Sítio São Francisco',
   'Bendito',
   'Marquezim',
   'Sassafraz',
@@ -29,6 +29,7 @@ const List<String> categoriasPadrao = [
   'UNIFORMES',
   'UTENSÍLIOS',
   'PAPELARIA',
+  'SALGADOS',
 ];
 
 const List<String> tiposPadrao = [
