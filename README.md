@@ -1,162 +1,211 @@
 # Orama Admin
 
-> **Orama Admin** is a Flutter & Firebase application that centralises stock control, replenishment reports and operational dashboards for every Orama unit – factory, stores and mobile carts – with offline‑first behaviour and hot‑patch updates.
+> **Orama Admin** é uma aplicação Flutter & Firebase que centraliza controle de estoque, relatórios de reposição, dashboard de vendas e painéis operacionais para todas as unidades Orama – fábrica, lojas e carrinhos móveis – com comportamento offline-first e atualizações via Shorebird.
 
 <div align="center">
 
-[![Flutter](https://img.shields.io/badge/built%20with-Flutter-02569B?logo=flutter&logoColor=white)](#tech-stack)
-[![Firebase](https://img.shields.io/badge/backed%20by-Firebase-FFCA28?logo=firebase&logoColor=black)](#tech-stack)
-[![CI/CD](https://img.shields.io/github/actions/workflow/status/rikelmyso7/orama_admin/ci.yaml?label=CI%2FCD)](#ci--cd)
-[![License](https://img.shields.io/github/license/rikelmyso7/orama_admin.svg)](#license)
+[![Flutter](https://img.shields.io/badge/Flutter-3.4.3+-02569B?logo=flutter&logoColor=white)](#tech-stack)
+[![Firebase](https://img.shields.io/badge/Firebase-Multi--Project-FFCA28?logo=firebase&logoColor=black)](#tech-stack)
+[![Version](https://img.shields.io/badge/version-2.7.7-green)](#)
+[![License](https://img.shields.io/badge/license-Proprietary-red)](#licença)
 
 </div>
 
 ---
 
-## Table of Contents
-1. [Key Features](#key-features)  
-2. [Tech Stack](#tech-stack)  
-3. [Architecture](#architecture)  
-4. [Getting Started](#getting-started)  
-5. [Environment Configuration](#environment-configuration)  
-6. [Running & Building](#running--building)  
-7. [Testing](#testing)  
-8. [CI / CD](#ci--cd)  
-9. [Contributing](#contributing)  
-10. [License](#license)
+## Índice
+1. [Funcionalidades](#funcionalidades)
+2. [Tech Stack](#tech-stack)
+3. [Arquitetura](#arquitetura)
+4. [Primeiros Passos](#primeiros-passos)
+5. [Estrutura de Pastas](#estrutura-de-pastas)
+6. [Executando o Projeto](#executando-o-projeto)
+7. [Build e Deploy](#build-e-deploy)
+8. [Licença](#licença)
 
 ---
 
-## Key Features
+## Funcionalidades
 
-| # | Feature | Details |
-|---|----------|---------|
-| 1 | **Centralized Stock** | Single Firestore collection keeps factory, store, and admin apps in sync, with offline‑first caching via GetStorage. |
-| 2 | **Replenishment Reports** | Create, copy, edit and export replenishment ("Reposição") reports with MobX‑powered forms. |
-| 3 | **Real‑time Dashboards** | Syncfusion charts & gauges visualize temperature history and stock levels in real time. |
-| 4 | **Offline Support** | Read/write locally when offline, auto‑sync when the device reconnects. |
-| 5 | **PDF & Excel Exports** | One‑tap generation of PDF romaneios and Excel spreadsheets for compliance and sharing. |
-| 6 | **Role‑based Auth** | Firebase Authentication with role guards for factory, store, and admin users. |
+| # | Funcionalidade | Detalhes |
+|---|----------------|----------|
+| 1 | **Dashboard de Vendas** | Visualização em tempo real de vendas por PDV, metas, evolução mensal e breakdown detalhado com gráficos FL Chart. |
+| 2 | **Controle de Estoque** | Gestão centralizada de estoque com sincronização multi-Firestore entre fábrica, lojas e admin. |
+| 3 | **Relatórios de Reposição** | Criar, copiar, editar e exportar relatórios de reposição com formulários reativo via MobX. |
+| 4 | **Gestão de Sabores** | Administração completa de sabores de sorvete, insumos e descartáveis. |
+| 5 | **Suporte Offline** | Leitura/escrita local quando offline, auto-sync quando o dispositivo reconecta via Connectivity Plus. |
+| 6 | **Exportação PDF & Excel** | Geração de romaneios em PDF e planilhas Excel para compliance e compartilhamento. |
+| 7 | **Gerenciamento de Usuários** | Cadastro de funcionários, locais e controle de acesso por unidade. |
+| 8 | **Multi-Firebase** | Integração com 3 projetos Firebase: Admin (Firestore), Loja (Firestore) e Vendas (Realtime Database). |
 
 ---
 
 ## Tech Stack
 
-- **Flutter**
-- **Firebase** (Auth ▸ Firestore ▸ Storage)  
-- **MobX** for reactive state  
-- **GetStorage** for local persistence  
-- **pdf / excel** packages for export  
-- **CI/CD**: GitHub Actions ▸ Codemagic (Shorebird hot‑patch ready)
+| Categoria | Tecnologia |
+|-----------|------------|
+| **Framework** | Flutter `>=3.4.3` / Dart `>=3.4.3` |
+| **Backend** | Firebase (Auth, Firestore, Realtime Database, Cloud Functions) |
+| **State Management** | MobX + Provider |
+| **Persistência Local** | GetStorage, SharedPreferences |
+| **Gráficos** | FL Chart |
+| **Exportação** | pdf, excel |
+| **Conectividade** | Connectivity Plus, Internet Connection Checker |
+| **Hot Updates** | Shorebird |
 
 ---
 
-## Architecture Overview
+## Arquitetura
 
 ```
-┌────────────┐          realtime           ┌──────────────┐
-│ Factory App│ ──────── Firestore ───────▶│ Admin Portal │
-└────────────┘         (stock)             └──────────────┘
-       ▲                                     │   ▲
-       │ write stock‑in                      │   │
-       ▼                                     ▼   │
-┌────────────┐        sync / offline       ┌──────────────┐
-│ Store App  │ ◀──────────────────────────│  Orama Stock │
-└────────────┘                             └──────────────┘
+┌─────────────────┐     Firestore      ┌─────────────────┐
+│   Orama Loja    │ ◀────────────────▶ │   Orama Admin   │
+│  (Secondary)    │     (estoque)      │   (Primary)     │
+└─────────────────┘                    └─────────────────┘
+                                              │
+                                              ▼
+┌─────────────────┐   Realtime DB     ┌─────────────────┐
+│   PDVs / Lojas  │ ────────────────▶ │  Sales Database │
+│                 │    (vendas)       │                 │
+└─────────────────┘                   └─────────────────┘
 ```
 
-*Clean Architecture:* UI → Stores → Services → Firebase datasource.
+**Camadas:**
+- **UI (Pages)** → Interface do usuário
+- **Stores (MobX)** → Estado reativo da aplicação
+- **Services** → Lógica de negócio e comunicação com Firebase
+- **Models** → Estruturas de dados
 
 ---
 
-## Getting Started
+## Primeiros Passos
 
-### 1. Prerequisites
+### Pré-requisitos
 
-- Flutter SDK `>= 3.10`
-- Dart `>= 3.2`
-- A Firebase project (enable **Auth** & **Firestore**)
+- Flutter SDK `>= 3.4.3`
+- Dart `>= 3.4.3`
+- 3 projetos Firebase configurados (Admin, Loja, Vendas)
 
-### 2. Clone & Install
+### Clone & Instalação
 
 ```bash
-$ git clone https://github.com/rikelmyso7/orama_admin.git
-$ cd orama_admin
-$ flutter pub get
+git clone https://github.com/rikelmyso7/orama_admin.git
+cd orama_admin
+flutter pub get
 ```
 
-### 3. Configure Firebase
+### Configuração Firebase
 
-1. Run `flutterfire configure` and select your project.  
-2. Copy `google-services.json` (Android) & `GoogleService-Info.plist` (iOS) into `android/` & `ios/` folders.  
-3. Ensure Firestore rules & indexes match `/firebase/firestore.rules`.
+1. Configure o `firebase_options.dart` com as credenciais dos 3 projetos:
+   - `DefaultFirebaseOptions` (Admin)
+   - `SecondaryFirebaseOptions` (Loja)
+   - `SalesFirebaseOptions` (Vendas - Realtime Database)
 
-### 4. Run the App
+2. Adicione `google-services.json` na pasta `android/app/`
 
+3. Gere os arquivos MobX:
 ```bash
-# Android / iOS
-flutter run
-
-# Web
-flutter run -d chrome --web-renderer canvaskit
-```
-
-### 5. Build Release
-
-```bash
-flutter build apk   # Android
-flutter build ios   # iOS
-flutter build web   # PWA
+flutter pub run build_runner build --delete-conflicting-outputs
 ```
 
 ---
 
-## Folder Structure
+## Estrutura de Pastas
 
 ```
 lib/
-├── main.dart            # entry point, routes
-├── pages/               # UI screens
-│   ├── home/
-│   ├── relatorios/
-│   └── reposicao/
-├── stores/              # MobX stores
-├── services/            # Firebase & API services
-├── utils/               # helpers, extensions, themes
-└── widgets/             # reusable components
+├── main.dart                 # Entry point, inicialização Firebase
+├── firebase_options.dart     # Configurações multi-Firebase
+├── routes/                   # Definição de rotas
+│   └── routes.dart
+├── auth/                     # Autenticação
+│   ├── authStateSwitcher.dart
+│   └── login_page.dart
+├── pages/                    # Telas da aplicação
+│   ├── admin_page.dart
+│   ├── dashboard_vendas_page.dart
+│   ├── estoque_page.dart
+│   ├── main_scaffold.dart
+│   ├── splash_page.dart
+│   ├── sabores_admin_page.dart
+│   ├── loja/
+│   │   ├── gerenciamento/    # CRUD funcionários, locais, estoque
+│   │   ├── relatorios/       # Visualização de relatórios
+│   │   └── reposicao/        # Gestão de reposições
+│   └── vendas/               # Páginas de análise de vendas
+│       ├── monthly_breakdown_page.dart
+│       └── pdv_monthly_breakdown_page.dart
+├── stores/                   # MobX Stores
+│   ├── stock_store.dart
+│   ├── comanda_store.dart
+│   └── *.g.dart              # Arquivos gerados
+├── vendas/                   # Módulo de vendas
+│   ├── models/               # Modelos de dados
+│   ├── constants/
+│   ├── vendas_store.dart
+│   ├── vendas_repository.dart
+│   └── vendas_cache.dart
+├── services/                 # Serviços
+│   └── update_service.dart
+├── utils/                    # Utilitários
+│   ├── gerar_excel.dart
+│   ├── gerar_romaneio.dart
+│   └── ...
+├── widgets/                  # Componentes reutilizáveis
+│   ├── my_styles/            # Estilos customizados
+│   ├── cards/                # Cards de UI
+│   └── vendas/               # Widgets do módulo vendas
+└── others/                   # Constantes e dados
+    ├── constants.dart
+    ├── sabores.dart
+    └── insumos.dart
 ```
 
-> **Tip:** Each `Store` holds observable state; `Services` are framework‑free – easy to unit‑test.
-
 ---
 
-## Testing
-
-- Unit tests live in `test/` – run with `flutter test`.
-- Widget tests cover critical flows such as report creation.
-
----
-
-## Documentation
-
-Generate API docs with:
+## Executando o Projeto
 
 ```bash
-flutter pub global activate dartdoc
-flutter pub global run dartdoc
+# Android
+flutter run
+
+# Com flavor específico (se configurado)
+flutter run --flavor production
 ```
 
-The HTML output in `doc/api` can be deployed with **GitHub Pages**.
+---
+
+## Build e Deploy
+
+### Android APK
+```bash
+flutter build apk --release
+```
+
+### Android App Bundle
+```bash
+flutter build appbundle --release
+```
+
+### Shorebird (Hot Updates)
+```bash
+shorebird release android
+shorebird patch android
+```
 
 ---
 
-## License
+## Licença
 
-Released under the MIT License – see [`LICENSE`](LICENSE) for details.
+**Projeto Proprietário** - Este repositório é público apenas para fins de portfólio e demonstração.
+
+Você pode visualizar o código para fins educacionais, mas **não está autorizado** a usar, copiar, modificar ou distribuir este software para qualquer finalidade comercial.
+
+Veja [`LICENSE`](LICENSE) para detalhes completos.
 
 ---
 
-## 📸 Screenshots
+## Screenshots
 
 <p align="center">
   <img src="lib/docs/screenshots/orama.png" width="250" />
@@ -168,6 +217,9 @@ Released under the MIT License – see [`LICENSE`](LICENSE) for details.
 
 <table>
   <tr>
-    <td align="center"><img src="https://avatars.githubusercontent.com/u/000000?v=4" width="80" /><br/>Rikelmy Roberto<br/><sub>Tech @ Orama</sub></td>
+    <td align="center">
+      <img src="https://avatars.githubusercontent.com/rikelmyso7" width="80" /><br/>
+      <b>Rikelmy Roberto</b><br/>
+    </td>
   </tr>
 </table>
