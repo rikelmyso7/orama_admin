@@ -51,6 +51,8 @@ class _AddReposicaoInfoState extends State<AddReposicaoInfo> {
   void didChangeDependencies() {
     super.didChangeDependencies();
     carregarLojasDoFirebase().then((_) {
+      if (!mounted) return;
+
       final data = GetStorage().read('cityStores');
       if (data != null) {
         setState(() {

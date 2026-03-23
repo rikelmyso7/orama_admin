@@ -155,22 +155,19 @@ class _ReposicaoPageState extends State<ReposicaoPage>
       final firestore = secondaryFirestore;
       final List<Map<String, dynamic>> storeReports = [];
 
-      // Busca reposições do usuário logado, filtrando por loja
-      final user = FirebaseAuth.instance.currentUser;
-      if (user != null) {
-        final reposicoesSnapshot = await firestore
-            .collection('usuarios')
-            .doc(user.uid)
-            .collection('reposicao')
-            .where('Loja', isEqualTo: storeName)
-            .get();
+      // Busca reposições salvas no usuário admin fixo
+      final reposicoesSnapshot = await firestore
+          .collection('users')
+          .doc('Db4XIYcNMhUgYXvF6JDJJxbc3h82')
+          .collection('reposicao')
+          .where('Loja', isEqualTo: storeName)
+          .get();
 
-        for (var doc in reposicoesSnapshot.docs) {
-          storeReports.add({
-            ...doc.data(),
-            'ID': doc.id,
-          });
-        }
+      for (var doc in reposicoesSnapshot.docs) {
+        storeReports.add({
+          ...doc.data(),
+          'ID': doc.id,
+        });
       }
 
       // Ordena por data (mais recentes primeiro)
