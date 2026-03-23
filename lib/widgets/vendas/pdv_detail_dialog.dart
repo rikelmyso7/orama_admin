@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:orama_admin/vendas/models/vendas_data_model.dart';
 import 'package:orama_admin/vendas/constants/pdv_constants.dart';
+import 'package:orama_admin/vendas/vendas_store.dart';
+import 'package:orama_admin/pages/vendas/store_months_page.dart';
+import 'package:provider/provider.dart';
 import 'meta_progress_bar.dart';
 
 class PdvDetailDialog extends StatelessWidget {
@@ -65,6 +68,26 @@ class PdvDetailDialog extends StatelessWidget {
                       ),
                     ],
                   ),
+                ),
+                IconButton(
+                  onPressed: () {
+                    Navigator.pop(context);
+                    final vendasStore =
+                        Provider.of<VendasStore>(context, listen: false);
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => StoreMonthsPage(
+                          storeId: venda.storeId,
+                          storeName: venda.storeName,
+                          storeColor: cor,
+                          store: vendasStore,
+                        ),
+                      ),
+                    );
+                  },
+                  icon: const Icon(Icons.open_in_new),
+                  tooltip: 'Ver histórico',
                 ),
                 IconButton(
                   onPressed: () => Navigator.pop(context),
