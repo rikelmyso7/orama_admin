@@ -1,21 +1,35 @@
-import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter_mobx/flutter_mobx.dart';
 import 'package:provider/provider.dart';
+import 'package:syncfusion_flutter_charts/charts.dart';
 import 'package:orama_admin/vendas/vendas_store.dart';
 
 class PdvMonthlyBreakdownPage extends StatelessWidget {
   const PdvMonthlyBreakdownPage({super.key});
 
   static const _primaryColor = Color(0xFF60C03D);
-  static const _barColor = Color(0xFFEA9E13);
+
+  static const _pdvColors = [
+    Color(0xFF60C03D),
+    Color(0xFF06B6D4),
+    Color(0xFFF97316),
+    Color(0xFF8B5CF6),
+    Color(0xFFEC4899),
+    Color(0xFFEA9E13),
+    Color(0xFF0EA5A0),
+    Color(0xFFE53935),
+    Color(0xFF1E88E5),
+    Color(0xFF43A047),
+    Color(0xFFD81B60),
+    Color(0xFF6D4C41),
+  ];
 
   @override
   Widget build(BuildContext context) {
     final store = Provider.of<VendasStore>(context);
 
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: const Color(0xFFF5F5F5),
       appBar: AppBar(
         title: Observer(
           builder: (_) => Text(
@@ -34,39 +48,92 @@ class PdvMonthlyBreakdownPage extends StatelessWidget {
           }
 
           final pdvData = _calculatePdvTotals(store);
+          if (pdvData.isEmpty) return const _EmptyState();
 
-          if (pdvData.isEmpty) {
-            return const _EmptyState();
-          }
-
-          final maxTotal =
-              pdvData.map((e) => e['total'] as double).fold(0.0, max);
           final grandTotal =
               pdvData.fold(0.0, (sum, item) => sum + (item['total'] as double));
 
-          return ListView.separated(
-            padding: const EdgeInsets.all(16),
-            itemCount: pdvData.length + 1,
-            separatorBuilder: (_, __) => const SizedBox(height: 16),
-            itemBuilder: (context, index) {
-              if (index == pdvData.length) {
-                return _TotalFooter(
-                  total: grandTotal,
-                  store: store,
-                  color: _primaryColor,
-                );
-              }
+          final chartData = pdvData.asMap().entries.map((e) {
+            final color = _pdvColors[e.key % _pdvColors.length];
+            return _ChartData(
+              label: e.value['name'] as String,
+              value: e.value['total'] as double,
+              color: color,
+            );
+          }).toList();
 
-              final data = pdvData[index];
-              return _PdvBar(
-                pdvName: data['name'] as String,
-                value: data['total'] as double,
-                maxValue: maxTotal,
-                store: store,
-                barColor: _barColor,
-                primaryColor: _primaryColor,
-              );
-            },
+          return Container(
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(12.0),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.06),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Vendas por PDV',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.black87,
+                            ),
+                          ),
+                          Text(
+                            store.mesSelecionado?.formattedMonth ?? 'Mês',
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: Colors.black54,
+                            ),
+                          ),
+                        ],
+                      ),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          const Text(
+                            'Total do mês',
+                            style: TextStyle(fontSize: 11, color: Colors.grey),
+                          ),
+                          Text(
+                            store.formatarValor(grandTotal),
+                            style: const TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.bold,
+                              color: _primaryColor,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                const Divider(
+                    height: 24, thickness: 1, color: Color(0xFFEEEEEE)),
+                _PdvBarChart(
+                  chartData: chartData,
+                  store: store,
+                ),
+                const Divider(
+                    height: 24, thickness: 1, color: Color(0xFFEEEEEE)),
+                const SizedBox(height: 8),
+              ],
+            ),
           );
         },
       ),
@@ -78,10 +145,8 @@ class PdvMonthlyBreakdownPage extends StatelessWidget {
 
     final mesKey = store.mesSelecionado!.key;
     final vendasMes = store.data!.vendasPorMes[mesKey];
-
     if (vendasMes == null) return [];
 
-    // Calcular total por PDV no mês
     final Map<String, Map<String, dynamic>> pdvTotals = {};
 
     for (final venda in vendasMes) {
@@ -98,110 +163,87 @@ class PdvMonthlyBreakdownPage extends StatelessWidget {
       }
     }
 
-    // Converter para lista e ordenar por valor (maior para menor)
-    final result = pdvTotals.values.toList()
+    return pdvTotals.values.toList()
       ..sort((a, b) => (b['total'] as double).compareTo(a['total'] as double));
-
-    return result;
   }
 }
 
-class _PdvBar extends StatelessWidget {
-  final String pdvName;
-  final double value;
-  final double maxValue;
+// Widget separado com StatefulWidget para isolar o ciclo de vida do gráfico
+class _PdvBarChart extends StatefulWidget {
+  final List<_ChartData> chartData;
   final VendasStore store;
-  final Color barColor;
-  final Color primaryColor;
 
-  const _PdvBar({
-    required this.pdvName,
-    required this.value,
-    required this.maxValue,
+  const _PdvBarChart({
+    super.key,
+    required this.chartData,
     required this.store,
-    required this.barColor,
-    required this.primaryColor,
   });
 
   @override
-  Widget build(BuildContext context) {
-    final percentage = maxValue > 0 ? value / maxValue : 0.0;
+  State<_PdvBarChart> createState() => _PdvBarChartState();
+}
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Expanded(
-              child: Text(
-                pdvName,
-                style:
-                    const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-            const SizedBox(width: 8),
-            Text(
-              store.formatarValor(value),
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-                color: primaryColor,
-              ),
-            ),
-          ],
+class _PdvBarChartState extends State<_PdvBarChart> {
+  @override
+  Widget build(BuildContext context) {
+    final chartHeight = (widget.chartData.length * 56.0).clamp(200.0, 500.0);
+
+    return SizedBox(
+      height: chartHeight,
+      child: SfCartesianChart(
+        margin: const EdgeInsets.fromLTRB(8, 8, 16, 8),
+        plotAreaBorderWidth: 0,
+        enableAxisAnimation: false,
+        primaryXAxis: CategoryAxis(
+          axisLine: const AxisLine(width: 0),
+          majorTickLines: const MajorTickLines(size: 0),
+          majorGridLines: const MajorGridLines(width: 0),
+          labelStyle: const TextStyle(fontSize: 12, color: Colors.black87),
+          maximumLabels: widget.chartData.length,
+          labelIntersectAction: AxisLabelIntersectAction.none,
         ),
-        const SizedBox(height: 6),
-        ClipRRect(
-          borderRadius: BorderRadius.circular(8),
-          child: LinearProgressIndicator(
-            value: percentage,
-            minHeight: 24,
-            backgroundColor: Colors.grey[200],
-            valueColor: AlwaysStoppedAnimation<Color>(barColor),
+        primaryYAxis: NumericAxis(isVisible: false),
+        series: [
+          BarSeries<_ChartData, String>(
+            dataSource: widget.chartData,
+            xValueMapper: (d, _) => d.label,
+            yValueMapper: (d, _) => d.value,
+            pointColorMapper: (d, _) => d.color,
+            borderRadius: BorderRadius.circular(6),
+            spacing: 0.3,
+            animationDuration: 0,
+            dataLabelSettings: DataLabelSettings(
+              isVisible: true,
+              labelAlignment: ChartDataLabelAlignment.outer,
+              builder: (data, point, series, pointIndex, seriesIndex) {
+                final d = data as _ChartData;
+                return Text(
+                  widget.store.formatarValor(d.value),
+                  style: const TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.black54,
+                  ),
+                );
+              },
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }
 
-class _TotalFooter extends StatelessWidget {
-  final double total;
-  final VendasStore store;
+class _ChartData {
+  final String label;
+  final double value;
   final Color color;
 
-  const _TotalFooter({
-    required this.total,
-    required this.store,
+  const _ChartData({
+    required this.label,
+    required this.value,
     required this.color,
   });
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        const SizedBox(height: 16),
-        const Divider(thickness: 2),
-        const SizedBox(height: 16),
-        Text(
-          'Total do mês',
-          style: TextStyle(fontSize: 16, color: Colors.grey[600]),
-        ),
-        const SizedBox(height: 8),
-        Text(
-          store.formatarValor(total),
-          style: TextStyle(
-            fontSize: 32,
-            fontWeight: FontWeight.bold,
-            color: color,
-          ),
-        ),
-        const SizedBox(height: 32),
-      ],
-    );
-  }
 }
 
 class _EmptyState extends StatelessWidget {
