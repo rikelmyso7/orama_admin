@@ -21,61 +21,56 @@ late FirebaseFirestore secondaryFirestore;
 late FirebaseDatabase salesDatabase;
 
 Future<void> initializeFirebase() async {
+  // Inicializa ou recupera o app padrão
+  FirebaseApp primaryApp;
   try {
-    final FirebaseApp primaryApp;
-    if (Firebase.apps.any((a) => a.name == '[DEFAULT]')) {
-      primaryApp = Firebase.app();
-    } else {
-      primaryApp = await Firebase.initializeApp(
-        options: DefaultFirebaseOptions.currentPlatform,
-      );
-    }
-
-    final FirebaseApp secondaryApp;
-    if (Firebase.apps.any((a) => a.name == 'SecondaryApp')) {
-      secondaryApp = Firebase.app('SecondaryApp');
-    } else {
-      secondaryApp = await Firebase.initializeApp(
-        name: 'SecondaryApp',
-        options: SecondaryFirebaseOptions.options,
-      );
-    }
-
-    final FirebaseApp salesApp;
-    if (Firebase.apps.any((a) => a.name == 'SalesApp')) {
-      salesApp = Firebase.app('SalesApp');
-    } else {
-      salesApp = await Firebase.initializeApp(
-        name: 'SalesApp',
-        options: SalesFirebaseOptions.options,
-      );
-    }
-
-    // Instâncias do Firestore para cada banco de dados
-    primaryFirestore = FirebaseFirestore.instanceFor(app: primaryApp);
-    secondaryFirestore = FirebaseFirestore.instanceFor(app: secondaryApp);
-
-    // Instância do Realtime Database para vendas
-    salesDatabase = FirebaseDatabase.instanceFor(
-      app: salesApp,
-      databaseURL: SalesFirebaseOptions.options.databaseURL!,
+    primaryApp = await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
     );
-
-    // Configurações para habilitar o cache offline
-    primaryFirestore.settings = const Settings(
-      persistenceEnabled: true,
-      cacheSizeBytes: Settings.CACHE_SIZE_UNLIMITED,
-    );
-    secondaryFirestore.settings = const Settings(
-      persistenceEnabled: true,
-      cacheSizeBytes: Settings.CACHE_SIZE_UNLIMITED,
-    );
-
-    print("Firebase inicializado com sucesso!");
-  } catch (e) {
-    print("Erro ao inicializar Firebase: $e");
-    rethrow;
+  } on FirebaseException {
+    primaryApp = Firebase.app();
   }
+
+  // Inicializa ou recupera o app secundário
+  FirebaseApp secondaryApp;
+  try {
+    secondaryApp = await Firebase.initializeApp(
+      name: 'SecondaryApp',
+      options: SecondaryFirebaseOptions.options,
+    );
+  } on FirebaseException {
+    secondaryApp = Firebase.app('SecondaryApp');
+  }
+
+  // Inicializa ou recupera o app de vendas
+  FirebaseApp salesApp;
+  try {
+    salesApp = await Firebase.initializeApp(
+      name: 'SalesApp',
+      options: SalesFirebaseOptions.options,
+    );
+  } on FirebaseException {
+    salesApp = Firebase.app('SalesApp');
+  }
+
+  primaryFirestore = FirebaseFirestore.instanceFor(app: primaryApp);
+  secondaryFirestore = FirebaseFirestore.instanceFor(app: secondaryApp);
+
+  salesDatabase = FirebaseDatabase.instanceFor(
+    app: salesApp,
+    databaseURL: SalesFirebaseOptions.options.databaseURL!,
+  );
+
+  primaryFirestore.settings = const Settings(
+    persistenceEnabled: true,
+    cacheSizeBytes: Settings.CACHE_SIZE_UNLIMITED,
+  );
+  secondaryFirestore.settings = const Settings(
+    persistenceEnabled: true,
+    cacheSizeBytes: Settings.CACHE_SIZE_UNLIMITED,
+  );
+
+  print("Firebase inicializado com sucesso!");
 }
 
 void monitorConnectivity(StockStore store) {
