@@ -1,7 +1,7 @@
 name: orama_admin
 description: "A new Flutter project."
 publish_to: 'none'
-version: 2.9.0+1
+version: 2.9.1+1
 
 environment:
   sdk: '>=3.4.3 <4.0.0'
