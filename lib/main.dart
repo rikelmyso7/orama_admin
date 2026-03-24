@@ -10,6 +10,7 @@ import 'package:orama_admin/firebase_options.dart';
 import 'package:orama_admin/routes/routes.dart';
 import 'package:orama_admin/stores/comanda_store.dart';
 import 'package:orama_admin/stores/stock_store.dart';
+import 'package:orama_admin/despesas/despesas_store.dart';
 import 'package:orama_admin/vendas/vendas_store.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:provider/provider.dart';
@@ -21,22 +22,34 @@ late FirebaseDatabase salesDatabase;
 
 Future<void> initializeFirebase() async {
   try {
-    // Inicialize o primeiro banco de dados (banco de dados padrão)
-    final FirebaseApp primaryApp = await Firebase.initializeApp(
-      options: DefaultFirebaseOptions.currentPlatform,
-    );
+    final FirebaseApp primaryApp;
+    if (Firebase.apps.any((a) => a.name == '[DEFAULT]')) {
+      primaryApp = Firebase.app();
+    } else {
+      primaryApp = await Firebase.initializeApp(
+        options: DefaultFirebaseOptions.currentPlatform,
+      );
+    }
 
-    // Inicialize o segundo banco de dados (OramaLoja)
-    final FirebaseApp secondaryApp = await Firebase.initializeApp(
-      name: 'SecondaryApp',
-      options: SecondaryFirebaseOptions.options,
-    );
+    final FirebaseApp secondaryApp;
+    if (Firebase.apps.any((a) => a.name == 'SecondaryApp')) {
+      secondaryApp = Firebase.app('SecondaryApp');
+    } else {
+      secondaryApp = await Firebase.initializeApp(
+        name: 'SecondaryApp',
+        options: SecondaryFirebaseOptions.options,
+      );
+    }
 
-    // Inicialize o terceiro banco de dados (Realtime Database para vendas)
-    final FirebaseApp salesApp = await Firebase.initializeApp(
-      name: 'SalesApp',
-      options: SalesFirebaseOptions.options,
-    );
+    final FirebaseApp salesApp;
+    if (Firebase.apps.any((a) => a.name == 'SalesApp')) {
+      salesApp = Firebase.app('SalesApp');
+    } else {
+      salesApp = await Firebase.initializeApp(
+        name: 'SalesApp',
+        options: SalesFirebaseOptions.options,
+      );
+    }
 
     // Instâncias do Firestore para cada banco de dados
     primaryFirestore = FirebaseFirestore.instanceFor(app: primaryApp);
@@ -99,6 +112,7 @@ class MyApp extends StatelessWidget {
         Provider<SaborStore>(create: (_) => SaborStore()),
         Provider<StockStore>(create: (_) => StockStore()),
         Provider<VendasStore>(create: (_) => VendasStore()),
+        ChangeNotifierProvider<DespesasStore>(create: (_) => DespesasStore()),
       ],
       child: MaterialApp(
         title: 'Orama Admin',

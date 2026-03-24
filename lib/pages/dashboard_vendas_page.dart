@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_mobx/flutter_mobx.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
@@ -10,6 +11,7 @@ import 'package:orama_admin/widgets/vendas/evolucao_chart.dart';
 import 'package:orama_admin/widgets/vendas/categoria_section.dart';
 import 'package:orama_admin/widgets/vendas/pdv_detail_dialog.dart';
 import 'package:orama_admin/widgets/date_picker_widget.dart';
+import 'package:orama_admin/pages/dashboard_despesas_page.dart';
 import 'package:orama_admin/pages/vendas/monthly_breakdown_page.dart';
 import 'package:orama_admin/pages/vendas/pdv_monthly_breakdown_page.dart';
 
@@ -110,6 +112,9 @@ class _DashboardVendasPageState extends State<DashboardVendasPage> {
                   // Header com seletores
                   _buildHeader(store),
 
+                  // Card Despesas
+                  _buildDespesasCard(),
+
                   // Cards de estatísticas
                   _buildStatsCards(store),
 
@@ -125,7 +130,8 @@ class _DashboardVendasPageState extends State<DashboardVendasPage> {
                         Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (context) => const PdvMonthlyBreakdownPage(),
+                            builder: (context) =>
+                                const PdvMonthlyBreakdownPage(),
                           ),
                         );
                       },
@@ -163,6 +169,75 @@ class _DashboardVendasPageState extends State<DashboardVendasPage> {
             ),
           );
         },
+      ),
+    );
+  }
+
+  Widget _buildDespesasCard() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      child: Card(
+        elevation: 2,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(12),
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => const DashboardDespesasPage(),
+              ),
+            );
+          },
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            decoration: BoxDecoration(
+              color: const Color(0xFFEF4444).withAlpha(700),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: FaIcon(
+                    FontAwesomeIcons.moneyBillTrendUp,
+                    color: Color(0xFFEF4444).withAlpha(700),
+                    size: 24,
+                  ),
+                ),
+                const SizedBox(width: 16),
+                const Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Despesas',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                      ),
+                      Text(
+                        'Ver análise de gastos',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const Icon(Icons.arrow_forward_ios,
+                    size: 16, color: Colors.white),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }
