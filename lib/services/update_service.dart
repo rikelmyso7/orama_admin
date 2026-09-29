@@ -1,7 +1,7 @@
 import 'dart:developer' as dev;
 import 'package:app_installer/app_installer.dart';
 import 'package:dio/dio.dart';
-import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -29,13 +29,17 @@ class UpdateInfo {
 class UpdateService {
   static const _logName = 'UpdateService';
 
+  static bool get _isAndroid =>
+      !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
+
   /// Compara duas versões no formato semântico (ex: "2.7.6")
   /// Retorna: -1 se v1 < v2, 0 se v1 == v2, 1 se v1 > v2
   static int _compareVersions(String v1, String v2) {
     final parts1 = v1.split('.').map((e) => int.tryParse(e) ?? 0).toList();
     final parts2 = v2.split('.').map((e) => int.tryParse(e) ?? 0).toList();
 
-    final maxLength = parts1.length > parts2.length ? parts1.length : parts2.length;
+    final maxLength =
+        parts1.length > parts2.length ? parts1.length : parts2.length;
 
     for (int i = 0; i < maxLength; i++) {
       final p1 = i < parts1.length ? parts1[i] : 0;
@@ -49,6 +53,11 @@ class UpdateService {
   }
 
   static Future<UpdateInfo?> checkForUpdate() async {
+    if (!_isAndroid) {
+      dev.log('Verificação de APK ignorada nesta plataforma.', name: _logName);
+      return null;
+    }
+
     dev.log('🔍 Iniciando verificação de atualização…', name: _logName);
 
     try {
@@ -60,7 +69,7 @@ class UpdateService {
       // 2. Consulta à API do GitHub
       const owner = 'rikelmyso7';
       const repo = 'orama_admin';
-      final url = 'https://api.github.com/repos/$owner/$repo/releases/latest';
+      const url = 'https://api.github.com/repos/$owner/$repo/releases/latest';
 
       dev.log('🌐 Consultando GitHub: $url', name: _logName);
       final response = await Dio().get(url);
@@ -79,9 +88,8 @@ class UpdateService {
       }
 
       // Remover 'v' do início se existir (ex: "v2.7.6" -> "2.7.6")
-      final latestVersion = tagName.startsWith('v')
-          ? tagName.substring(1)
-          : tagName;
+      final latestVersion =
+          tagName.startsWith('v') ? tagName.substring(1) : tagName;
 
       dev.log('Versão mais recente no GitHub: $latestVersion', name: _logName);
 
@@ -89,7 +97,8 @@ class UpdateService {
       final comparison = _compareVersions(currentVersion, latestVersion);
 
       if (comparison >= 0) {
-        dev.log('✅ App já está na última versão ou mais novo ($currentVersion >= $latestVersion).',
+        dev.log(
+            '✅ App já está na última versão ou mais novo ($currentVersion >= $latestVersion).',
             name: _logName);
         return null;
       }
@@ -123,7 +132,8 @@ class UpdateService {
         latestVersion: latestVersion,
         apkUrl: apkUrl,
         title: 'Atualização disponível',
-        message: data['body']?.toString() ?? 'Uma nova versão do aplicativo está disponível. Atualize agora!',
+        message: data['body']?.toString() ??
+            'Uma nova versão do aplicativo está disponível. Atualize agora!',
         version: latestVersion,
       );
 
@@ -138,7 +148,7 @@ class UpdateService {
 
   Future<void> openApk(String url) async {
     final canLaunch = await canLaunchUrl(Uri.parse(url));
-    print('Pode abrir? $canLaunch');
+    dev.log('Pode abrir? $canLaunch', name: _logName);
 
     final launched = await launchUrl(
       Uri.parse(url),
@@ -152,9 +162,15 @@ class UpdateService {
 
   Future<void> downloadAndInstall(
     String url, {
-    Function(double progress, String downloaded, String total)? onDownloadProgress,
+    Function(double progress, String downloaded, String total)?
+        onDownloadProgress,
     Function(String status)? onStatusUpdate,
   }) async {
+    if (!_isAndroid) {
+      await openApk(url);
+      return;
+    }
+
     final tempPath = '${(await getTemporaryDirectory()).path}/app-release.apk';
     dev.log('Caminho temporário: $tempPath', name: _logName);
 
@@ -173,7 +189,8 @@ class UpdateService {
             final totalMB = (total / 1024 / 1024).toStringAsFixed(1);
 
             onDownloadProgress?.call(progress, downloadedMB, totalMB);
-            dev.log('📈 Progresso download: ${(progress * 100).toStringAsFixed(1)}% ($downloadedMB/$totalMB MB)',
+            dev.log(
+                '📈 Progresso download: ${(progress * 100).toStringAsFixed(1)}% ($downloadedMB/$totalMB MB)',
                 name: _logName);
           }
         },
@@ -190,7 +207,6 @@ class UpdateService {
 
       onStatusUpdate?.call('Instalação iniciada');
       dev.log('🎉 Instalação iniciada com sucesso', name: _logName);
-
     } catch (e, s) {
       dev.log('❌ Erro durante download/instalação: $e',
           name: _logName, error: e, stackTrace: s);

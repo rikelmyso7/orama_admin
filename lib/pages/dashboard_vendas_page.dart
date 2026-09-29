@@ -14,6 +14,8 @@ import 'package:orama_admin/widgets/date_picker_widget.dart';
 import 'package:orama_admin/pages/dashboard_despesas_page.dart';
 import 'package:orama_admin/pages/vendas/monthly_breakdown_page.dart';
 import 'package:orama_admin/pages/vendas/pdv_monthly_breakdown_page.dart';
+import 'package:orama_admin/services/user_access_service.dart';
+import 'package:orama_admin/widgets/access_denied.dart';
 
 class DashboardVendasPage extends StatefulWidget {
   const DashboardVendasPage({super.key});
@@ -26,6 +28,8 @@ class _DashboardVendasPageState extends State<DashboardVendasPage> {
   @override
   void initState() {
     super.initState();
+    if (!UserAccessService.canAccessFinancialArea) return;
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final store = Provider.of<VendasStore>(context, listen: false);
       store.fetchData();
@@ -35,6 +39,7 @@ class _DashboardVendasPageState extends State<DashboardVendasPage> {
   @override
   Widget build(BuildContext context) {
     final store = Provider.of<VendasStore>(context);
+    final canAccessFinancialArea = UserAccessService.canAccessFinancialArea;
 
     return Scaffold(
       appBar: AppBar(
@@ -48,6 +53,13 @@ class _DashboardVendasPageState extends State<DashboardVendasPage> {
       ),
       body: Observer(
         builder: (_) {
+          if (!canAccessFinancialArea) {
+            return const AccessDenied(
+              message:
+                  'A conta adm@orama.com não possui acesso à parte financeira do app.',
+            );
+          }
+
           if (store.isLoading && store.data == null) {
             return const Center(
               child: Column(
@@ -113,7 +125,7 @@ class _DashboardVendasPageState extends State<DashboardVendasPage> {
                   _buildHeader(store),
 
                   // Card Despesas
-                  _buildDespesasCard(),
+                  if (canAccessFinancialArea) _buildDespesasCard(),
 
                   // Cards de estatísticas
                   _buildStatsCards(store),

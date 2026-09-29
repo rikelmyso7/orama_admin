@@ -8,6 +8,7 @@ import 'package:get_storage/get_storage.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:orama_admin/others/field_validators.dart';
 import 'package:orama_admin/routes/routes.dart';
+import 'package:orama_admin/services/user_access_service.dart';
 import 'package:orama_admin/utils/exit_dialog_utils.dart';
 import 'package:orama_admin/widgets/my_styles/my_textfield.dart';
 
@@ -69,8 +70,13 @@ class _LoginPageState extends State<LoginPage> {
       );
       print('Login realizado com sucesso!');
       final userId = authResult.user!.uid;
-      if (userId != null) {
-        GetStorage().write('userId', userId);
+      GetStorage().write('userId', userId);
+
+      if (UserAccessService.isAdministrativeProfile) {
+        if (mounted) {
+          Navigator.of(context).pushReplacementNamed(RouteName.admin_page);
+        }
+        return;
       }
 
       final userData = await FirebaseFirestore.instance
@@ -79,15 +85,16 @@ class _LoginPageState extends State<LoginPage> {
           .get();
 
       if (userData.exists) {
-        final role = userData['role'];
+        final role = userData.data()?['role'];
         if (role == 'admin') {
           if (mounted) {
-            Navigator.of(context)
-                .pushReplacementNamed(RouteName.admin_page);
+            Navigator.of(context).pushReplacementNamed(RouteName.admin_page);
           }
         } else {
           _showErrorDialog('Usuário sem permissão.');
         }
+      } else {
+        _showErrorDialog('Usuário sem permissão.');
       }
     } on FirebaseAuthException catch (e) {
       if (e.code == 'user-not-found') {
@@ -175,14 +182,18 @@ class _LoginPageState extends State<LoginPage> {
                             hintText: 'Email',
                             validator: FieldValidators.validateEmail,
                             prefixicon: Icon(Icons.email),
-                            inputFormatters: [FilteringTextInputFormatter.deny(RegExp(r'\s'))],
+                            inputFormatters: [
+                              FilteringTextInputFormatter.deny(RegExp(r'\s'))
+                            ],
                           ),
                           MyTextField(
                             controller: _passwordController,
                             hintText: 'Senha',
                             obscureText: obscurePassword,
                             validator: FieldValidators.validatePassword,
-                            inputFormatters: [FilteringTextInputFormatter.deny(RegExp(r'\s'))],
+                            inputFormatters: [
+                              FilteringTextInputFormatter.deny(RegExp(r'\s'))
+                            ],
                             prefixicon: Icon(Icons.lock),
                             icon: Padding(
                               padding: const EdgeInsets.only(right: 5),

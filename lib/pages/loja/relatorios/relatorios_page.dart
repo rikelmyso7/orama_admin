@@ -18,10 +18,14 @@ class RelatoriosPage extends StatefulWidget {
 
 class _RelatoriosPageState extends State<RelatoriosPage>
     with TickerProviderStateMixin {
+  static const int _reportsPageSizeInDays = 30;
+
   late TabController _tabController;
   List<String> stores = [];
-  Map<String, List<Map<String, dynamic>>> reportsByStore = {}; // Cache de relatórios por loja
+  Map<String, List<Map<String, dynamic>>> reportsByStore =
+      {}; // Cache de relatórios por loja
   Map<String, bool> loadingByStore = {}; // Estado de loading por loja
+  Map<String, int> visibleDaysByStore = {}; // Janela visível em dias por loja
   bool isLoading = true;
   String? selectedStore;
   DateTime selectedDate = DateTime.now();
@@ -52,6 +56,7 @@ class _RelatoriosPageState extends State<RelatoriosPage>
         // Inicializa estado de loading para cada loja
         for (var store in fetchedStores) {
           loadingByStore[store] = false;
+          visibleDaysByStore[store] = _reportsPageSizeInDays;
         }
       });
 
@@ -97,6 +102,7 @@ class _RelatoriosPageState extends State<RelatoriosPage>
           stores = cachedStores;
           for (var store in cachedStores) {
             loadingByStore[store] = false;
+            visibleDaysByStore[store] = _reportsPageSizeInDays;
           }
         });
         print("Lojas carregadas do cache local: ${stores.length} lojas");
@@ -133,6 +139,7 @@ class _RelatoriosPageState extends State<RelatoriosPage>
     setState(() {
       selectedStore = storeName;
       loadingByStore[storeName] = true;
+      visibleDaysByStore.putIfAbsent(storeName, () => _reportsPageSizeInDays);
     });
 
     // Se já tem cache dessa loja, não precisa recarregar
@@ -221,14 +228,44 @@ class _RelatoriosPageState extends State<RelatoriosPage>
   void goToPreviousDay() {
     setState(() {
       selectedDate = selectedDate.subtract(Duration(days: 1));
+      _resetVisibleDaysForSelectedStore();
     });
   }
 
   void goToNextDay() {
     setState(() {
       selectedDate = selectedDate.add(Duration(days: 1));
+      _resetVisibleDaysForSelectedStore();
     });
   }
+
+  void _resetVisibleDaysForSelectedStore() {
+    if (selectedStore != null) {
+      visibleDaysByStore[selectedStore!] = _reportsPageSizeInDays;
+    }
+  }
+
+  void _loadMoreReports(String storeName) {
+    setState(() {
+      visibleDaysByStore[storeName] =
+          (visibleDaysByStore[storeName] ?? _reportsPageSizeInDays) +
+              _reportsPageSizeInDays;
+    });
+  }
+
+  DateTime? _parseReportDate(Map<String, dynamic> report) {
+    final dateStr = report['Data'];
+    if (dateStr == null) return null;
+
+    try {
+      return DateFormat('dd/MM/yyyy HH:mm').parse(dateStr);
+    } catch (e) {
+      return null;
+    }
+  }
+
+  DateTime _dateOnly(DateTime date) =>
+      DateTime(date.year, date.month, date.day);
 
   String getFormattedDate(DateTime date) {
     return DateFormat("dd 'de' MMMM yyyy", 'pt_BR').format(date);
@@ -339,6 +376,7 @@ class _RelatoriosPageState extends State<RelatoriosPage>
                           onDateSelected: (newDate) {
                             setState(() {
                               selectedDate = newDate;
+                              _resetVisibleDaysForSelectedStore();
                             });
                             if (selectedStore != null) {
                               _loadReportsForStore(selectedStore!);
@@ -424,50 +462,88 @@ class _RelatoriosPageState extends State<RelatoriosPage>
 
     final reports = reportsByStore[storeName] ?? [];
 
-    // Filtra relatórios por data selecionada
-    final dateFormat = DateFormat('dd/MM/yyyy HH:mm');
+    final visibleDays = visibleDaysByStore[storeName] ?? _reportsPageSizeInDays;
+    final endDate = _dateOnly(selectedDate);
+    final startDate = endDate.subtract(Duration(days: visibleDays - 1));
+
     final filteredReports = reports.where((report) {
-      final dateStr = report['Data'];
-      if (dateStr == null) return false;
-      try {
-        final reportDate = dateFormat.parse(dateStr, true).toLocal();
-        return reportDate.year == selectedDate.year &&
-            reportDate.month == selectedDate.month &&
-            reportDate.day == selectedDate.day;
-      } catch (e) {
-        return false;
-      }
+      final reportDate = _parseReportDate(report);
+      if (reportDate == null) return false;
+
+      final reportDay = _dateOnly(reportDate);
+      return !reportDay.isBefore(startDate) && !reportDay.isAfter(endDate);
     }).toList();
 
+    final hasOlderReports = reports.any((report) {
+      final reportDate = _parseReportDate(report);
+      if (reportDate == null) return false;
+
+      return _dateOnly(reportDate).isBefore(startDate);
+    });
+
     if (filteredReports.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.description_outlined, size: 64, color: Colors.grey),
-            SizedBox(height: 16),
-            Text(
-              "Nenhum relatório disponível",
-              style: TextStyle(fontSize: 18, color: Colors.grey),
-            ),
-            SizedBox(height: 8),
-            Text(
-              "para $storeName em ${getFormattedDate(selectedDate)}",
-              style: TextStyle(fontSize: 14, color: Colors.grey[600]),
-              textAlign: TextAlign.center,
-            ),
-          ],
-        ),
+      return ListView(
+        padding: EdgeInsets.all(24),
+        children: [
+          SizedBox(height: MediaQuery.of(context).size.height * 0.2),
+          Icon(Icons.description_outlined, size: 64, color: Colors.grey),
+          SizedBox(height: 16),
+          Text(
+            "Nenhum relatório disponível",
+            style: TextStyle(fontSize: 18, color: Colors.grey),
+            textAlign: TextAlign.center,
+          ),
+          SizedBox(height: 8),
+          Text(
+            "para $storeName nos últimos $visibleDays dias até ${getFormattedDate(selectedDate)}",
+            style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+            textAlign: TextAlign.center,
+          ),
+          if (hasOlderReports) _buildLoadMoreButton(storeName),
+        ],
       );
     }
 
     return ListView.builder(
       padding: EdgeInsets.all(8),
-      itemCount: filteredReports.length,
+      itemCount: filteredReports.length + 1,
       itemBuilder: (context, index) {
+        if (index == filteredReports.length) {
+          if (!hasOlderReports) {
+            return Padding(
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              child: Text(
+                'Todos os relatórios carregados.',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: Colors.grey[600]),
+              ),
+            );
+          }
+
+          return _buildLoadMoreButton(storeName);
+        }
+
         final report = filteredReports[index];
         return _buildReportCard(report);
       },
+    );
+  }
+
+  Widget _buildLoadMoreButton(String storeName) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 16),
+      child: Center(
+        child: OutlinedButton.icon(
+          onPressed: () => _loadMoreReports(storeName),
+          icon: Icon(Icons.expand_more),
+          label: Text('Carregar mais relatórios'),
+          style: OutlinedButton.styleFrom(
+            foregroundColor: const Color(0xff60C03D),
+            side: const BorderSide(color: Color(0xff60C03D)),
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+          ),
+        ),
+      ),
     );
   }
 

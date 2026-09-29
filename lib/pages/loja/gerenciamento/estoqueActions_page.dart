@@ -4,6 +4,7 @@ import 'package:orama_admin/pages/dashboard_vendas_page.dart';
 import 'package:orama_admin/pages/loja/gerenciamento/addFuncionarioPage.dart';
 import 'package:orama_admin/pages/loja/gerenciamento/addItemEstoquePage.dart';
 import 'package:orama_admin/pages/loja/gerenciamento/addLocalPage.dart';
+import 'package:orama_admin/services/user_access_service.dart';
 
 class EstoqueActionsPage extends StatelessWidget {
   const EstoqueActionsPage({super.key});
@@ -56,17 +57,19 @@ class EstoqueActionsPage extends StatelessWidget {
                   MaterialPageRoute(builder: (_) => AddLojaPage()),
                 ),
               ),
-              const SizedBox(height: 20),
-              _buildCard(
-                context,
-                title: 'Dashboard de Vendas',
-                icon: Icons.bar_chart_rounded,
-                onTap: () => Navigator.push(
+              if (UserAccessService.canAccessFinancialArea) ...[
+                const SizedBox(height: 20),
+                _buildCard(
                   context,
-                  MaterialPageRoute(
-                      builder: (_) => const DashboardVendasPage()),
+                  title: 'Dashboard de Vendas',
+                  icon: Icons.bar_chart_rounded,
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (_) => const DashboardVendasPage()),
+                  ),
                 ),
-              ),
+              ],
             ],
           ),
         ),

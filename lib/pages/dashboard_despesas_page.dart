@@ -3,7 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import 'package:orama_admin/despesas/despesas_store.dart';
-import 'package:orama_admin/despesas/models/despesa_lancamento.dart';
+import 'package:orama_admin/services/user_access_service.dart';
+import 'package:orama_admin/widgets/access_denied.dart';
 import 'package:orama_admin/widgets/vendas/stats_card.dart';
 
 class DashboardDespesasPage extends StatefulWidget {
@@ -22,6 +23,8 @@ class _DashboardDespesasPageState extends State<DashboardDespesasPage> {
   @override
   void initState() {
     super.initState();
+    if (!UserAccessService.canAccessFinancialArea) return;
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final store = Provider.of<DespesasStore>(context, listen: false);
       store.fetchData();
@@ -40,84 +43,91 @@ class _DashboardDespesasPageState extends State<DashboardDespesasPage> {
         foregroundColor: Colors.white,
         elevation: 4,
       ),
-      body: Consumer<DespesasStore>(
-        builder: (context, store, _) {
-          if (store.isLoading && store.isEmpty) {
-            return const Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  CircularProgressIndicator(color: _red),
-                  SizedBox(height: 16),
-                  Text('Carregando dados...'),
-                ],
-              ),
-            );
-          }
+      body: UserAccessService.canAccessFinancialArea
+          ? Consumer<DespesasStore>(
+              builder: (context, store, _) {
+                if (store.isLoading && store.isEmpty) {
+                  return const Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        CircularProgressIndicator(color: _red),
+                        SizedBox(height: 16),
+                        Text('Carregando dados...'),
+                      ],
+                    ),
+                  );
+                }
 
-          if (store.error != null && store.isEmpty) {
-            return Center(
-              child: Padding(
-                padding: const EdgeInsets.all(24),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Icon(Icons.error_outline, size: 64, color: _red),
-                    const SizedBox(height: 16),
-                    Text('Erro ao carregar dados',
-                        style: Theme.of(context).textTheme.titleLarge),
-                    const SizedBox(height: 8),
-                    Text(store.error!,
-                        textAlign: TextAlign.center,
-                        style: TextStyle(color: Colors.grey[600])),
-                    const SizedBox(height: 24),
-                    ElevatedButton.icon(
-                      onPressed: () => store.fetchData(forceRefresh: true),
-                      icon: const Icon(Icons.refresh),
-                      label: const Text('Tentar novamente'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: _red,
-                        foregroundColor: Colors.white,
+                if (store.error != null && store.isEmpty) {
+                  return Center(
+                    child: Padding(
+                      padding: const EdgeInsets.all(24),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Icon(Icons.error_outline,
+                              size: 64, color: _red),
+                          const SizedBox(height: 16),
+                          Text('Erro ao carregar dados',
+                              style: Theme.of(context).textTheme.titleLarge),
+                          const SizedBox(height: 8),
+                          Text(store.error!,
+                              textAlign: TextAlign.center,
+                              style: TextStyle(color: Colors.grey[600])),
+                          const SizedBox(height: 24),
+                          ElevatedButton.icon(
+                            onPressed: () =>
+                                store.fetchData(forceRefresh: true),
+                            icon: const Icon(Icons.refresh),
+                            label: const Text('Tentar novamente'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: _red,
+                              foregroundColor: Colors.white,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                  ],
-                ),
-              ),
-            );
-          }
+                  );
+                }
 
-          if (store.isEmpty) {
-            return const Center(child: Text('Nenhum dado disponível'));
-          }
+                if (store.isEmpty) {
+                  return const Center(child: Text('Nenhum dado disponível'));
+                }
 
-          // Modo drill-down: dia selecionado
-          if (store.diaSelecionado != null) {
-            return _buildDrillDown(store);
-          }
+                // Modo drill-down: dia selecionado
+                if (store.diaSelecionado != null) {
+                  return _buildDrillDown(store);
+                }
 
-          return RefreshIndicator(
-            onRefresh: () => store.fetchData(forceRefresh: true),
-            color: _red,
-            child: SingleChildScrollView(
-              physics: const AlwaysScrollableScrollPhysics(),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildMesHeader(store),
-                  _buildStatsCards(store),
-                  _buildComparativoMensal(store),
-                  _buildEvolucaoDiaria(store),
-                  _buildTopCategorias(store),
-                  _buildUnidades(store),
-                  if (store.gastosFuturos.isNotEmpty)
-                    _buildGastosFuturos(store),
-                  const SizedBox(height: 24),
-                ],
-              ),
+                return RefreshIndicator(
+                  onRefresh: () => store.fetchData(forceRefresh: true),
+                  color: _red,
+                  child: SingleChildScrollView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _buildMesHeader(store),
+                        _buildStatsCards(store),
+                        _buildComparativoMensal(store),
+                        _buildEvolucaoDiaria(store),
+                        _buildTopCategorias(store),
+                        _buildUnidades(store),
+                        if (store.gastosFuturos.isNotEmpty)
+                          _buildGastosFuturos(store),
+                        const SizedBox(height: 24),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            )
+          : const AccessDenied(
+              message:
+                  'A conta adm@orama.com não possui acesso à parte financeira do app.',
             ),
-          );
-        },
-      ),
     );
   }
 
