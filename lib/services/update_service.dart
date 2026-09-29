@@ -2,6 +2,7 @@ import 'dart:developer' as dev;
 import 'package:app_installer/app_installer.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
+import 'package:open_filex/open_filex.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -32,6 +33,9 @@ class UpdateService {
   static bool get _isAndroid =>
       !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
 
+  static bool get _isWindows =>
+      !kIsWeb && defaultTargetPlatform == TargetPlatform.windows;
+
   /// Compara duas versões no formato semântico (ex: "2.7.6")
   /// Retorna: -1 se v1 < v2, 0 se v1 == v2, 1 se v1 > v2
   static int _compareVersions(String v1, String v2) {
@@ -53,8 +57,9 @@ class UpdateService {
   }
 
   static Future<UpdateInfo?> checkForUpdate() async {
-    if (!_isAndroid) {
-      dev.log('Verificação de APK ignorada nesta plataforma.', name: _logName);
+    if (!_isAndroid && !_isWindows) {
+      dev.log('Verificação de atualização ignorada nesta plataforma.',
+          name: _logName);
       return null;
     }
 
@@ -103,34 +108,34 @@ class UpdateService {
         return null;
       }
 
-      // 4. Encontrar o APK nos assets
+      // 4. Encontrar o instalador correto nos assets
       final assets = data['assets'] as List<dynamic>?;
       if (assets == null || assets.isEmpty) {
-        dev.log('❌ Release sem assets/APK', name: _logName);
+        dev.log('❌ Release sem assets', name: _logName);
         return null;
       }
 
-      // Procurar por arquivo .apk
-      final apkAsset = assets.firstWhere(
-        (asset) => asset['name']?.toString().endsWith('.apk') ?? false,
+      final installerAsset = assets.firstWhere(
+        (asset) => _isSupportedInstallerAsset(asset['name']?.toString()),
         orElse: () => null,
       );
 
-      if (apkAsset == null) {
-        dev.log('❌ Nenhum APK encontrado nos assets', name: _logName);
+      if (installerAsset == null) {
+        dev.log('❌ Nenhum instalador compatível encontrado nos assets',
+            name: _logName);
         return null;
       }
 
-      final apkUrl = apkAsset['browser_download_url']?.toString();
-      if (apkUrl == null) {
-        dev.log('❌ APK sem URL de download', name: _logName);
+      final installerUrl = installerAsset['browser_download_url']?.toString();
+      if (installerUrl == null) {
+        dev.log('❌ Instalador sem URL de download', name: _logName);
         return null;
       }
 
       // 5. Nova atualização disponível
       final info = UpdateInfo(
         latestVersion: latestVersion,
-        apkUrl: apkUrl,
+        apkUrl: installerUrl,
         title: 'Atualização disponível',
         message: data['body']?.toString() ??
             'Uma nova versão do aplicativo está disponível. Atualize agora!',
@@ -144,6 +149,26 @@ class UpdateService {
           name: _logName, error: e, stackTrace: s);
       return null;
     }
+  }
+
+  static bool _isSupportedInstallerAsset(String? assetName) {
+    if (assetName == null) return false;
+
+    final name = assetName.toLowerCase();
+
+    if (_isAndroid) {
+      return name.endsWith('.apk');
+    }
+
+    if (_isWindows) {
+      return name.endsWith('.exe') &&
+          (name.contains('setup') ||
+              name.contains('installer') ||
+              name.contains('windows') ||
+              name.contains('orama_admin'));
+    }
+
+    return false;
   }
 
   Future<void> openApk(String url) async {
@@ -166,6 +191,15 @@ class UpdateService {
         onDownloadProgress,
     Function(String status)? onStatusUpdate,
   }) async {
+    if (_isWindows) {
+      await _downloadAndOpenWindowsInstaller(
+        url,
+        onDownloadProgress: onDownloadProgress,
+        onStatusUpdate: onStatusUpdate,
+      );
+      return;
+    }
+
     if (!_isAndroid) {
       await openApk(url);
       return;
@@ -209,6 +243,49 @@ class UpdateService {
       dev.log('🎉 Instalação iniciada com sucesso', name: _logName);
     } catch (e, s) {
       dev.log('❌ Erro durante download/instalação: $e',
+          name: _logName, error: e, stackTrace: s);
+      onStatusUpdate?.call('Erro: $e');
+      rethrow;
+    }
+  }
+
+  Future<void> _downloadAndOpenWindowsInstaller(
+    String url, {
+    Function(double progress, String downloaded, String total)?
+        onDownloadProgress,
+    Function(String status)? onStatusUpdate,
+  }) async {
+    final tempPath =
+        '${(await getTemporaryDirectory()).path}/orama_admin_setup.exe';
+    dev.log('Caminho temporário do instalador: $tempPath', name: _logName);
+
+    try {
+      onStatusUpdate?.call('Baixando instalador...');
+
+      await Dio().download(
+        url,
+        tempPath,
+        onReceiveProgress: (received, total) {
+          if (total != -1) {
+            final progress = received / total;
+            final downloadedMB = (received / 1024 / 1024).toStringAsFixed(1);
+            final totalMB = (total / 1024 / 1024).toStringAsFixed(1);
+
+            onDownloadProgress?.call(progress, downloadedMB, totalMB);
+          }
+        },
+      );
+
+      onStatusUpdate?.call('Abrindo instalador...');
+      final result = await OpenFilex.open(tempPath);
+
+      if (result.type != ResultType.done) {
+        throw Exception(result.message);
+      }
+
+      onStatusUpdate?.call('Instalador iniciado');
+    } catch (e, s) {
+      dev.log('❌ Erro durante atualização do Windows: $e',
           name: _logName, error: e, stackTrace: s);
       onStatusUpdate?.call('Erro: $e');
       rethrow;

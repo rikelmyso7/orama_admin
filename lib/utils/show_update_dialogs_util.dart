@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:orama_admin/services/update_service.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 class UpdateDialog {
   static void show({
@@ -102,6 +101,11 @@ class _UpdateProgressDialogState extends State<UpdateProgressDialog> {
           children: [
             const Text(
               'Não feche o aplicativo durante a atualização',
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 12),
+            Text(
+              _status,
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 12),

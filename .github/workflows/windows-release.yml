@@ -1,0 +1,119 @@
+name: Windows Release
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'pubspec.yaml'
+      - 'pubspec.lock'
+      - 'lib/**'
+      - 'windows/**'
+      - 'installer/**'
+      - '.github/workflows/windows-release.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  release-windows:
+    name: Build and release Windows installer
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Check pubspec version bump
+        id: version
+        shell: pwsh
+        run: |
+          $currentLine = Get-Content pubspec.yaml | Where-Object { $_ -match '^version:\s*(.+)$' } | Select-Object -First 1
+          if (-not $currentLine) {
+            throw 'Versão atual não encontrada no pubspec.yaml.'
+          }
+
+          $currentFull = ($currentLine -replace '^version:\s*', '').Trim()
+          $currentVersion = $currentFull -replace '\+.*$', ''
+          $previousVersion = ''
+
+          try {
+            $previousPubspec = git show HEAD^:pubspec.yaml
+            $previousLine = $previousPubspec | Where-Object { $_ -match '^version:\s*(.+)$' } | Select-Object -First 1
+            if ($previousLine) {
+              $previousFull = ($previousLine -replace '^version:\s*', '').Trim()
+              $previousVersion = $previousFull -replace '\+.*$', ''
+            }
+          } catch {
+            $previousVersion = ''
+          }
+
+          git fetch --tags --force
+          $tag = "v$currentVersion"
+          $existingTag = git tag -l $tag
+
+          $shouldRelease = ($currentVersion -ne $previousVersion) -and (-not $existingTag)
+
+          "version=$currentVersion" >> $env:GITHUB_OUTPUT
+          "tag=$tag" >> $env:GITHUB_OUTPUT
+          "should_release=$($shouldRelease.ToString().ToLower())" >> $env:GITHUB_OUTPUT
+
+          Write-Host "Versão anterior: $previousVersion"
+          Write-Host "Versão atual: $currentVersion"
+          Write-Host "Tag: $tag"
+          Write-Host "Criar release: $shouldRelease"
+
+      - name: Stop when version was not bumped
+        if: steps.version.outputs.should_release != 'true'
+        shell: pwsh
+        run: |
+          Write-Host 'Nenhum bump de versão novo detectado no pubspec.yaml. Release ignorada.'
+
+      - name: Setup Flutter
+        if: steps.version.outputs.should_release == 'true'
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.35.4'
+          channel: stable
+          cache: true
+
+      - name: Install dependencies
+        if: steps.version.outputs.should_release == 'true'
+        run: flutter pub get
+
+      - name: Build Windows release
+        if: steps.version.outputs.should_release == 'true'
+        run: flutter build windows --release
+
+      - name: Install Inno Setup
+        if: steps.version.outputs.should_release == 'true'
+        shell: pwsh
+        run: choco install innosetup --no-progress -y
+
+      - name: Build installer
+        if: steps.version.outputs.should_release == 'true'
+        shell: pwsh
+        run: |
+          $iscc = Get-Command iscc -ErrorAction SilentlyContinue
+          $isccPath = if ($iscc) { $iscc.Source } else { Join-Path ${env:ProgramFiles(x86)} 'Inno Setup 6\ISCC.exe' }
+
+          if (-not (Test-Path $isccPath)) {
+            throw 'Inno Setup Compiler não encontrado.'
+          }
+
+          & $isccPath "/DAppVersion=${{ steps.version.outputs.version }}" installer\orama_admin.iss
+
+      - name: Create GitHub release
+        if: steps.version.outputs.should_release == 'true'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.tag }}
+          name: Orama Admin ${{ steps.version.outputs.version }}
+          body: |
+            Release automática do Orama Admin para Windows.
+
+            Instalador: `orama_admin_setup_${{ steps.version.outputs.version }}.exe`
+          files: installer/orama_admin_setup_${{ steps.version.outputs.version }}.exe
+          fail_on_unmatched_files: true
