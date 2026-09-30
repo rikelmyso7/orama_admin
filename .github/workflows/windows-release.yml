@@ -28,7 +28,7 @@ jobs:
         with:
           fetch-depth: 2
 
-      - name: Check pubspec version bump
+      - name: Check release version
         id: version
         shell: pwsh
         run: |
@@ -56,7 +56,7 @@ jobs:
           $tag = "v$currentVersion"
           $existingTag = git tag -l $tag
 
-          $shouldRelease = ($currentVersion -ne $previousVersion) -and (-not $existingTag)
+          $shouldRelease = -not $existingTag
 
           "version=$currentVersion" >> $env:GITHUB_OUTPUT
           "tag=$tag" >> $env:GITHUB_OUTPUT
@@ -67,11 +67,11 @@ jobs:
           Write-Host "Tag: $tag"
           Write-Host "Criar release: $shouldRelease"
 
-      - name: Stop when version was not bumped
+      - name: Stop when release already exists
         if: steps.version.outputs.should_release != 'true'
         shell: pwsh
         run: |
-          Write-Host 'Nenhum bump de versão novo detectado no pubspec.yaml. Release ignorada.'
+          Write-Host 'A tag da versão atual já existe. Release ignorada.'
 
       - name: Setup Flutter
         if: steps.version.outputs.should_release == 'true'
